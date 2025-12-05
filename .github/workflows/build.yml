@@ -1,0 +1,97 @@
+name: Build and Release AudioShelf
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows App
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Read Version from File
+        id: get_version
+        shell: powershell
+        run: |
+          $ver = Get-Content VERSION
+          echo "VERSION=$ver" >> $env:GITHUB_ENV
+          Write-Host "Detected Version: $ver"
+
+      - name: Update Changelog and Push
+        run: |
+          python update_changelog.py $env:VERSION
+          
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          
+          git add CHANGELOG.md
+          git commit -m "Auto-update Changelog for version $env:VERSION [skip ci]" || Write-Host "No changes to commit"
+          git push
+
+      - name: Generate Version Info for Exe
+        run: |
+          python create_version.py $env:VERSION
+
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller AudioShelf.spec
+
+      - name: Create Portable Zip
+        run: |
+          $ZIP_NAME = "AudioShelf-$env:VERSION-Win64-Portable.zip"
+          
+          New-Item -ItemType Directory -Force -Path "PortableStaging\AudioShelf"
+          Copy-Item -Path "dist\AudioShelf\*" -Destination "PortableStaging\AudioShelf" -Recurse
+          New-Item -Path "PortableStaging\AudioShelf\_libs\.portable" -ItemType File
+          
+          Compress-Archive -Path "PortableStaging\AudioShelf" -DestinationPath "$ZIP_NAME"
+          
+          echo "PORTABLE_ZIP_NAME=$ZIP_NAME" >> $env:GITHUB_ENV
+
+      - name: Setup NSIS
+        run: choco install nsis
+
+      - name: Build Installer
+        run: |
+          & "C:\Program Files (x86)\NSIS\makensis.exe" setup.nsi
+          
+          $SETUP_NAME = "AudioShelf-$env:VERSION-Win64-Setup.exe"
+          
+          if (Test-Path $SETUP_NAME) {
+              Write-Host "Installer created: $SETUP_NAME"
+              echo "SETUP_EXE_NAME=$SETUP_NAME" >> $env:GITHUB_ENV
+          } else {
+              Write-Error "Installer file not found!"
+              exit 1
+          }
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ env.PORTABLE_ZIP_NAME }}
+            ${{ env.SETUP_EXE_NAME }}
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

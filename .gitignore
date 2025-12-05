@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+venv314/
+.env
+
+# Build Artifacts
+build/
+dist/
+
+
+# User Data & Logs (Private)
+user_data/
+*.log
+audioshelf.db
+.portable
+
+# IDEs
+.idea/
+.vscode/
+
+# Temporary Updates
+audioshelf_updater.bat
+version_info.txt

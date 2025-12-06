@@ -23,3 +23,4 @@ audioshelf.db
 # Temporary Updates
 audioshelf_updater.bat
 version_info.txt
+update_changelog.py

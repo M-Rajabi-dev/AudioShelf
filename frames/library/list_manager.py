@@ -479,11 +479,11 @@ class LibraryListManager:
             menu_handlers.on_refresh_library(frame, None)
             return
 
-        elif ctrl_down and keycode == wx.WXK_PAGEUP:
+        elif alt_down and keycode == wx.WXK_PAGEUP:
             self.navigate_to_shelf(frame, direction=-1)
             return
 
-        elif ctrl_down and keycode == wx.WXK_PAGEDOWN:
+        elif alt_down and keycode == wx.WXK_PAGEDOWN:
             self.navigate_to_shelf(frame, direction=1)
             return
 

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AudioShelf Download</title>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #ffffff;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .container {
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 10px;
+            background-color: #252526;
+            max-width: 400px;
+        }
+        h1 { font-size: 20px; margin-bottom: 10px; }
+        p { color: #cccccc; margin-bottom: 20px; }
+        .btn {
+            display: none; /* اول مخفی است */
+            background-color: #007acc;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .btn:hover { background-color: #005f9e; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007acc;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <script>
+        const user = 'M-Rajabi-dev';
+        const repo = 'AudioShelf';
+        const filePattern = '-Setup.exe'; 
+
+        fetch(`https://api.github.com/repos/${user}/${repo}/releases/latest`)
+            .then(response => response.json())
+            .then(data => {
+                const asset = data.assets.find(a => a.name.endsWith(filePattern));
+                const status = document.getElementById('status');
+                const manualBtn = document.getElementById('manual-link');
+                const loader = document.getElementById('loader');
+
+                if (asset) {
+                    status.innerHTML = `Downloading <b>${asset.name}</b>...`;
+                    window.location.href = asset.browser_download_url;
+                    
+                    manualBtn.href = asset.browser_download_url;
+                    manualBtn.style.display = 'inline-block';
+                    manualBtn.innerText = "Click here if download doesn't start";
+                    loader.style.display = 'none';
+                } else {
+                    loader.style.display = 'none';
+                    status.innerHTML = "Error: File not found in the latest release.";
+                }
+            })
+            .catch(err => {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('status').innerHTML = "Connection Error.";
+            });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>🎧 AudioShelf</h1>
+        <div id="loader" class="loader"></div>
+        <p id="status">Finding latest version...</p>
+        <a id="manual-link" class="btn" href="#">Download Manually</a>
+    </div>
+</body>
+</html>

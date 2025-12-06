@@ -257,4 +257,27 @@ class PlayerFrame(wx.Frame):
         """Opens or focuses the Equalizer window."""
         if self.equalizer_frame_instance:
             self.equalizer_frame_instance.Raise()
-  
+            self.equalizer_frame_instance.SetFocus()
+            return
+
+        try:
+            self.equalizer_frame_instance = equalizer_frame.EqualizerFrame(
+                parent=self,
+                engine=self.engine,
+                initial_settings=self.current_eq_settings,
+                initial_enabled=self.is_eq_enabled
+            )
+            self.equalizer_frame_instance.Show()
+        except Exception as e:
+            logging.error(f"Failed to create EqualizerFrame: {e}", exc_info=True)
+
+    def on_equalizer_changed(self, new_settings: str, new_enabled: bool):
+        """Callback from EqualizerFrame when settings change."""
+        self.current_eq_settings = new_settings
+        self.is_eq_enabled = new_enabled
+        self._update_audio_filters()
+
+    def on_eq_enabled_changed(self, new_enabled: bool):
+        """Toggles the Equalizer on/off."""
+        self.is_eq_enabled = new_enabled
+        self._update_audio_filters()

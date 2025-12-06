@@ -37,7 +37,7 @@ Once you press Enter on a book, the Player opens.
     - Play/Pause: Space
     - Stop (and reset to start): Shift + Space
     - Volume: Up/Down Arrows
-    - Speed Control: J (Slower), H (Faster), K (Reset). Hold Shift for larger steps (0.5x).
+    - Speed Control: J (Faster), H (Slower), K (Reset). Hold Shift for larger steps (0.5x).
 
 *   Navigation:
     - Seek: Left/Right Arrows (Short jump), Ctrl+Left/Right (Long jump).

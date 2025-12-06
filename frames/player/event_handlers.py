@@ -63,7 +63,6 @@ def on_engine_file_changed(frame: 'PlayerFrame', event, new_engine_index: int):
     if frame.start_pos_ms > 0:
         frame.start_pos_ms = 0
 
-    frame.info_manager.announce_file_only()
 
 
 def on_engine_end_reached(frame: 'PlayerFrame', event):

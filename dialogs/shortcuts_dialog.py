@@ -77,8 +77,8 @@ class ShortcutsDialog(wx.Dialog):
         self._add_item(_("Jump to Pinned Books"), "Alt + P")
         self._add_item(_("Jump to Finished Books"), "Alt + 9")
         self._add_item(_("Jump to Shelf 2..8"), "Alt + 2..8")
-        self._add_item(_("Previous Shelf"), "Ctrl + PageUp")
-        self._add_item(_("Next Shelf"), "Ctrl + PageDown")
+        self._add_item(_("Previous Shelf"), "Alt + PageUp")
+        self._add_item(_("Next Shelf"), "Alt + PageDown")
 
         # Player: Playback
         self._add_header(_("Player: Playback"))
@@ -100,8 +100,8 @@ class ShortcutsDialog(wx.Dialog):
         self._add_item(_("Go to 50% of File"), "Ctrl + Backspace")
         self._add_item(_("Go to 30s before End"), "Shift + Backspace")
         self._add_item(_("Go To Time..."), "G")
-        self._add_item(_("Go To File Number..."), "Ctrl + G")
         self._add_item(_("Show File List"), "F")
+        self._add_item(_("Go To File Number..."), "Ctrl + F")
 
         # Player: Audio
         self._add_header(_("Player: Audio"))

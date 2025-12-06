@@ -161,14 +161,15 @@ def on_key_down(frame, event: wx.KeyEvent):
         elif not ctrl_down:
             frame.info_manager.announce_total_elapsed_time()
 
-    # Dialogs / Exit
+# Dialogs / Exit
     elif keycode == ord('G'):
-        if ctrl_down:
-            frame.dialog_manager.on_goto_file()
-        else:
+        if not ctrl_down:
             frame.dialog_manager.on_goto()
     elif keycode == ord('F'):
-        frame.dialog_manager.on_show_files()
+        if shift_down:
+            frame.dialog_manager.on_goto_file()
+        else:
+            frame.dialog_manager.on_show_files()
     elif keycode == wx.WXK_ESCAPE:
         event_handlers.on_escape(frame)
 

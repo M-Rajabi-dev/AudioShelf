@@ -1,5 +1,6 @@
 # db_layer/schema.py
-# Copyright (c) 2025 Mehdi Rajabi. See LICENSE for details.
+# Copyright (c) 2025 Mehdi Rajabi
+# License: GNU General Public License v3.0 (See LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 """
 Defines the SQL schema (CREATE TABLE and CREATE INDEX statements) for the database.

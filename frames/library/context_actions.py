@@ -1,5 +1,6 @@
 # frames/library/context_actions.py
-# Copyright (c) 2025 Mehdi Rajabi. See LICENSE for details.
+# Copyright (c) 2025 Mehdi Rajabi
+# License: GNU General Public License v3.0 (See LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 """
 Acts as a facade for context menu actions, re-exporting functions from

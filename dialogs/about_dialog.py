@@ -1,5 +1,6 @@
 # dialogs/about_dialog.py
-# Copyright (c) 2025 Mehdi Rajabi. See LICENSE for details.
+# Copyright (c) 2025 Mehdi Rajabi
+# License: GNU General Public License v3.0 (See LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 import wx
 from i18n import _
@@ -24,7 +25,7 @@ def get_app_version():
         return "1.0.0"
 
 APP_VERSION = get_app_version()
-COPYRIGHT = "Copyright (c) 2025 Mehdi Rajabi. All rights reserved."
+COPYRIGHT = "Copyright (c) 2025 Mehdi Rajabi. Released under GNU GPL v3."
 GITHUB_URL = "https://github.com/M-Rajabi-Dev/AudioShelf"
 CONTACT_EMAIL = "mehdi.rajabi.dev@gmail.com"
 

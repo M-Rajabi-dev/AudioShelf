@@ -1,5 +1,6 @@
 # frames/player/speed_logic.py
-# Copyright (c) 2025 Mehdi Rajabi. See LICENSE for details.
+# Copyright (c) 2025 Mehdi Rajabi
+# License: GNU General Public License v3.0 (See LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 from i18n import _

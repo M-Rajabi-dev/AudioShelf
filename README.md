@@ -9,6 +9,7 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![Accessibility](https://img.shields.io/badge/Accessibility-Native%20NVDA-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.14-yellow.svg)
+![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
 
 AudioShelf is a specialized desktop application designed for audiobook enthusiasts who need precision, organization, and accessibility. Unlike generic media players, AudioShelf understands that every book is a unique journey with its own progress, history, and settings.
 
@@ -119,4 +120,5 @@ AudioShelf is a free and open-source project developed with passion.
 ## 📜 License
 
 Copyright (c) 2025 Mehdi Rajabi.
-Distributed under the MIT License. See `LICENSE` for more information.
+AudioShelf is Free Software: You can use, study share and improve it at your will.
+Specifically you can redistribute and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.

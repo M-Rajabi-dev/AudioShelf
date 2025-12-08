@@ -1,5 +1,6 @@
 # frames/player/volume_logic.py
-# Copyright (c) 2025 Mehdi Rajabi. See LICENSE for details.
+# Copyright (c) 2025 Mehdi Rajabi
+# License: GNU General Public License v3.0 (See LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from i18n import _
 from nvda_controller import speak, LEVEL_MINIMAL, LEVEL_FULL

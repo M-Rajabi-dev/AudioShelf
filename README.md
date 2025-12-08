@@ -51,7 +51,7 @@ AudioShelf is designed to be keyboard-centric. Press `F1` in the app for the ful
 | **Stop (Reset)** | `Shift + Space` |
 | **Rewind / Forward** | `Left` / `Right` Arrow |
 | **Volume Control** | `Up` / `Down` Arrow |
-| **Speed Control** | `J` (Slower) / `H` (Faster) / `K` (Reset) |
+| **Speed Control** | `J` (Faster) / `H` (Slower) / `K` (Reset) |
 | **Quick Bookmark** | `B` |
 | **Sleep Timer** | `T` |
 | **Play Last Book** | `Ctrl + L` |

@@ -457,7 +457,7 @@ class LibraryFrame(wx.Frame):
         if event.success and event.has_update:
             msg = _("A new version ({0}) is available.\nDo you want to download and install it now?").format(
                 event.latest_version)
-            if wx.MessageBox(msg, _("Update Available"), wx.YES_NO | wx.ICON_INFORMATION, parent=self) == wx.YES:
+            if wx.MessageBox(msg, _("Update Available"), wx.YES_NO | wx.CANCEL | wx.ICON_INFORMATION, parent=self) == wx.YES:
                 self.update_manager.download_and_install(event.download_url)
         elif not event.success and not event.silent:
             wx.MessageBox(_("Update check failed.\nError: {0}").format(event.error_msg), _("Error"),

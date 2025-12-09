@@ -480,8 +480,7 @@ def on_missing_books_result(frame, event):
         titles = "\n - ".join([b[1] for b in missing_books])
         msg += "\n\n - " + titles
 
-    if wx.MessageBox(msg, _("Clear Missing Books"), wx.YES_NO | wx.ICON_QUESTION | wx.NO_DEFAULT,
-                     parent=frame) == wx.YES:
+    if wx.MessageBox(msg, _("Clear Missing Books"), wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION | wx.YES_DEFAULT, parent=frame) == wx.YES:
         
         speak(_("Removing missing books..."), LEVEL_CRITICAL)
         wx.BeginBusyCursor()

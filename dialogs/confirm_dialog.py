@@ -9,6 +9,8 @@ class CheckboxConfirmDialog(wx.Dialog):
     def __init__(self, parent, title, message, check_label, button_label):
         super().__init__(parent, title=title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         
+        wx.Bell()
+
         self.panel = wx.Panel(self)
         vbox = wx.BoxSizer(wx.VERTICAL)
         

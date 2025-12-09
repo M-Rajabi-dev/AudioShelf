@@ -101,14 +101,9 @@ def on_context_rename_shelf(frame, event, source='library'):
 
 
 def on_context_delete_shelf(frame, event, source='library'):
-    """
-    Deletes selected shelf/shelves. Only empty shelves can be deleted.
-    Hold Shift to skip confirmation dialog (Quick Delete).
-    """
     if source != 'library':
         return
 
-    skip_confirm = wx.GetKeyState(wx.WXK_SHIFT)
     shelves_to_delete = action_utils.get_selected_shelf_data_list(frame)
 
     if not shelves_to_delete:
@@ -129,17 +124,14 @@ def on_context_delete_shelf(frame, event, source='library'):
         return
 
     count = len(valid_shelves)
-    if not skip_confirm:
-        if count == 1:
-            msg = _("Are you sure you want to delete shelf '{0}'? This only works if the shelf is empty.").format(
-                valid_shelves[0][1])
-        else:
-            msg = _("Are you sure you want to delete {0} shelves? Only empty shelves will be deleted.").format(count)
-
-        if wx.MessageBox(msg, _("Confirm Delete"), wx.YES_NO | wx.ICON_WARNING | wx.NO_DEFAULT, parent=frame) != wx.YES:
-            return
+    if count == 1:
+        msg = _("Are you sure you want to delete shelf '{0}'? This only works if the shelf is empty.").format(
+            valid_shelves[0][1])
     else:
-        logging.info(f"Quick Delete (Shift+Delete) activated for {count} shelves.")
+        msg = _("Are you sure you want to delete {0} shelves? Only empty shelves will be deleted.").format(count)
+
+    if wx.MessageBox(msg, _("Confirm Delete"), wx.YES_NO | wx.CANCEL | wx.ICON_WARNING | wx.YES_DEFAULT, parent=frame) != wx.YES:
+        return
 
     deleted_count = 0
     failed_count = 0
@@ -150,7 +142,7 @@ def on_context_delete_shelf(frame, event, source='library'):
                 db_manager.shelf_repo.delete_shelf(sid)
                 deleted_count += 1
             except sqlite3.IntegrityError:
-                failed_count += 1  # Not empty
+                failed_count += 1
             except Exception as e:
                 logging.error(f"Error deleting shelf {sid}: {e}")
                 failed_count += 1

@@ -155,7 +155,6 @@ def on_context_update_location(frame, event, source='library'):
 
 
 def on_context_delete_book(frame, event, source='library'):
-    skip_confirm = wx.GetKeyState(wx.WXK_SHIFT)
     books_to_delete = action_utils.get_selected_book_data_list(frame, source)
 
     if not books_to_delete:
@@ -166,18 +165,15 @@ def on_context_delete_book(frame, event, source='library'):
             return
 
     count = len(books_to_delete)
-    if not skip_confirm:
-        if count == 1:
-            msg = _("Are you sure you want to remove '{0}' from your library? (Files will NOT be deleted)").format(
-                books_to_delete[0][1])
-        else:
-            msg = _("Are you sure you want to remove {0} books from your library? (Files will NOT be deleted)").format(
-                count)
-        
-        if wx.MessageBox(msg, _("Confirm Remove"), wx.YES_NO | wx.ICON_WARNING | wx.NO_DEFAULT, parent=frame) != wx.YES:
-            return
+    if count == 1:
+        msg = _("Are you sure you want to remove '{0}' from your library? (Files will NOT be deleted)").format(
+            books_to_delete[0][1])
     else:
-        logging.info(f"Quick Delete (Shift+Delete) activated for {count} books.")
+        msg = _("Are you sure you want to remove {0} books from your library? (Files will NOT be deleted)").format(
+            count)
+    
+    if wx.MessageBox(msg, _("Confirm Remove"), wx.YES_NO | wx.CANCEL | wx.ICON_WARNING | wx.YES_DEFAULT, parent=frame) != wx.YES:
+        return
 
     try:
         for (book_id, book_title) in books_to_delete:

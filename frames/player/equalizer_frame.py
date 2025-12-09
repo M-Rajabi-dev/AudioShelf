@@ -62,7 +62,8 @@ class EqualizerFrame(wx.Frame):
 
         # Bind ESC key to close
         accel_tbl = wx.AcceleratorTable([
-            (wx.ACCEL_NORMAL, wx.WXK_ESCAPE, wx.ID_CLOSE)
+            (wx.ACCEL_NORMAL, wx.WXK_ESCAPE, wx.ID_CLOSE),
+            (wx.ACCEL_NORMAL, wx.WXK_DELETE, ID_DELETE_PRESET)
         ])
         self.SetAcceleratorTable(accel_tbl)
         self.Bind(wx.EVT_MENU, self.on_close, id=wx.ID_CLOSE)
@@ -175,6 +176,7 @@ class EqualizerFrame(wx.Frame):
         self.preset_choice.Bind(wx.EVT_CHOICE, self.on_preset_select)
         self.save_button.Bind(wx.EVT_BUTTON, self.on_save_preset)
         self.delete_button.Bind(wx.EVT_BUTTON, self.on_delete_preset)
+        self.Bind(wx.EVT_MENU, self.on_delete_preset, id=ID_DELETE_PRESET)
 
         for slider in self.sliders:
             slider.Bind(wx.EVT_SCROLL_CHANGED, self.on_slider_change)
@@ -288,7 +290,7 @@ class EqualizerFrame(wx.Frame):
             return
 
         msg = _("Are you sure you want to delete preset '{0}'?").format(preset_name)
-        if wx.MessageBox(msg, _("Confirm Delete"), wx.YES_NO | wx.ICON_WARNING) == wx.YES:
+        if wx.MessageBox(msg, _("Confirm Delete"), wx.YES_NO | wx.CANCEL | wx.ICON_WARNING | wx.YES_DEFAULT) == wx.YES:
             try:
                 db_manager.delete_eq_preset(preset_id)
                 speak(_("Preset deleted."), LEVEL_CRITICAL)

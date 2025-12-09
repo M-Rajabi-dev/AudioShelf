@@ -160,7 +160,7 @@ def on_import_database(frame, event):
             "The application will close immediately after import.\n"
             "Do you want to continue?")
             
-    if wx.MessageBox(msg, _("Confirm Import"), wx.YES_NO | wx.ICON_WARNING) != wx.YES:
+    if wx.MessageBox(msg, _("Confirm Import"), wx.YES_NO | wx.CANCEL | wx.ICON_WARNING | wx.YES_DEFAULT) != wx.YES:
         return
 
     dlg = wx.FileDialog(

@@ -395,6 +395,7 @@ class LibraryListManager:
         keycode = event.GetKeyCode()
         ctrl_down = event.ControlDown()
         alt_down = event.AltDown()
+        shift_down = event.ShiftDown()
 
         if alt_down and keycode in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             context_actions.on_context_properties(frame, None, source='library')
@@ -457,7 +458,10 @@ class LibraryListManager:
                 if item_data:
                     item_type, item_id = item_data
                     if item_type == 'book':
-                        context_actions.on_context_delete_book(frame, None, source='library')
+                        if shift_down:
+                            context_actions.on_context_delete_computer(frame, None, source='library')
+                        else:
+                            context_actions.on_context_delete_book(frame, None, source='library')
                     elif item_type == 'shelf':
                         context_actions.on_context_delete_shelf(frame, None, source='library')
             return

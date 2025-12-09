@@ -120,7 +120,7 @@ class BookmarkListDialog(wx.Dialog):
         bookmark_title = self.bookmark_list.GetItemText(selected_index)
 
         msg = _("Are you sure you want to delete bookmark '{0}'?").format(bookmark_title)
-        if wx.MessageBox(msg, _("Confirm Delete"), wx.YES_NO | wx.ICON_WARNING) == wx.YES:
+        if wx.MessageBox(msg, _("Confirm Delete"), wx.YES_NO | wx.CANCEL | wx.ICON_WARNING | wx.YES_DEFAULT) == wx.YES:
             try:
                 db_manager.delete_bookmark(bookmark_id)
                 speak(_("Bookmark deleted."), LEVEL_CRITICAL)

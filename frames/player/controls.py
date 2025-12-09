@@ -147,7 +147,7 @@ def on_key_down(frame, event: wx.KeyEvent):
     # Info Announcements
     elif keycode == ord('I'):
         if ctrl_down:
-            frame.info_manager.announce_info()
+            frame.info_manager.copy_current_time()
         elif alt_down:
             frame.info_manager.announce_remaining_file_time()
         elif shift_down:

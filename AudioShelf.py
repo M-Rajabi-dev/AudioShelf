@@ -95,8 +95,8 @@ def handle_uncaught_exception(exc_type, exc_value, exc_traceback):
     try:
         app = wx.GetApp()
         if app and hasattr(app, 'player_frame_instance') and app.player_frame_instance:
-            if hasattr(app.player_frame_instance, 'hotkey_manager') and app.player_frame_instance.hotkey_manager:
-                app.player_frame_instance.hotkey_manager.unregister_hotkeys()
+            if hasattr(app.player_frame_instance, 'global_keys_manager') and app.player_frame_instance.global_keys_manager:
+                app.player_frame_instance.global_keys_manager.unregister_hotkeys()
     except Exception as e:
         logging.error(f"Failed to cleanup during crash: {e}")
 

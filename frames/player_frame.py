@@ -8,7 +8,7 @@ import logging
 from typing import List, Tuple, Optional
 import wx.lib.newevent
 
-from nvda_controller import set_app_focus_status
+from nvda_controller import set_app_focus_status, cancel_speech
 from database import db_manager
 from i18n import _
 from utils import SleepTimer
@@ -19,14 +19,14 @@ from .player import (
     dialog_manager,
     info,
     event_handlers,
-    hotkey_manager,
+    global_media_keys,
     playback_logic,
     volume_logic,
     seek_logic,
     book_loader,
     equalizer_frame
 )
-from .player.hotkey_manager import (
+from .player.global_media_keys import (
     VK_MEDIA_PLAY_PAUSE, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PREV_TRACK,
     VK_VOLUME_UP, VK_VOLUME_DOWN, VK_VOLUME_MUTE,
     VK_BROWSER_BACK, VK_BROWSER_FORWARD
@@ -95,7 +95,7 @@ class PlayerFrame(wx.Frame):
         # Managers
         self.equalizer_frame_instance: Optional[wx.Frame] = None
         self.sleep_timer_manager: Optional[SleepTimer] = None
-        self.hotkey_manager: Optional[hotkey_manager.HotkeyManager] = None
+        self.global_keys_manager: Optional[global_media_keys.GlobalMediaKeysManager] = None
         self.book_loader: Optional[book_loader.BookLoader] = None
         self.DurationUpdateEvent = DurationUpdateEvent
 
@@ -164,6 +164,10 @@ class PlayerFrame(wx.Frame):
         
         self.book_loader = book_loader.BookLoader(self)
 
+    def _do_global(self, func):
+        cancel_speech()
+        func()
+
     def _bind_events(self):
         """Binds all events (UI, Engine, Hotkeys)."""
         self.nvda_focus_label.Bind(wx.EVT_CHAR_HOOK, lambda event: controls.on_key_down(self, event))
@@ -178,19 +182,21 @@ class PlayerFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, lambda event: event_handlers.on_escape(self, event))
 
         # Setup Global Hotkeys
-        self.hotkey_manager = hotkey_manager.HotkeyManager(self)
+        self.global_keys_manager = global_media_keys.GlobalMediaKeysManager(self)
+        
         key_function_map = {
-            VK_MEDIA_PLAY_PAUSE: lambda: playback_logic.toggle_play_pause(self),
-            VK_MEDIA_NEXT_TRACK: lambda: playback_logic.play_next_file(self, manual=True),
-            VK_MEDIA_PREV_TRACK: lambda: playback_logic.play_prev_file(self),
-            VK_VOLUME_UP: lambda: volume_logic.change_volume(self, 5),
-            VK_VOLUME_DOWN: lambda: volume_logic.change_volume(self, -5),
-            VK_VOLUME_MUTE: lambda: volume_logic.toggle_mute(self),
-            VK_BROWSER_BACK: lambda: seek_logic.seek_backward_setting(self),
-            VK_BROWSER_FORWARD: lambda: seek_logic.seek_forward_setting(self),
+            VK_MEDIA_PLAY_PAUSE: lambda: self._do_global(lambda: playback_logic.toggle_play_pause(self)),
+            VK_MEDIA_NEXT_TRACK: lambda: self._do_global(lambda: playback_logic.play_next_file(self, manual=True)),
+            VK_MEDIA_PREV_TRACK: lambda: self._do_global(lambda: playback_logic.play_prev_file(self)),
+            VK_VOLUME_UP: lambda: self._do_global(lambda: volume_logic.change_volume(self, 5)),
+            VK_VOLUME_DOWN: lambda: self._do_global(lambda: volume_logic.change_volume(self, -5)),
+            VK_VOLUME_MUTE: lambda: self._do_global(lambda: volume_logic.toggle_mute(self)),
+            VK_BROWSER_BACK: lambda: self._do_global(lambda: seek_logic.seek_backward_setting(self)),
+            VK_BROWSER_FORWARD: lambda: self._do_global(lambda: seek_logic.seek_forward_setting(self)),
         }
-        self.hotkey_manager.setup_hotkeys(key_function_map)
-        self.Bind(wx.EVT_HOTKEY, self.hotkey_manager.on_hotkey_pressed)
+        
+        self.global_keys_manager.setup_hotkeys(key_function_map)
+        self.Bind(wx.EVT_HOTKEY, self.global_keys_manager.on_hotkey_pressed)
 
         self.ui_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, lambda event: event_handlers.on_ui_timer(self, event), self.ui_timer)
@@ -282,3 +288,9 @@ class PlayerFrame(wx.Frame):
         """Toggles the Equalizer on/off."""
         self.is_eq_enabled = new_enabled
         self._update_audio_filters()
+
+    def update_file_display(self, filename: str):
+        self.nvda_focus_label.SetLabel(filename)
+        if not self.IsActive():
+            from nvda_controller import speak, LEVEL_MINIMAL
+            speak(filename, LEVEL_MINIMAL)

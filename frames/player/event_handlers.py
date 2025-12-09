@@ -8,21 +8,16 @@ import os
 from typing import Optional, TYPE_CHECKING
 
 from database import db_manager
-from nvda_controller import set_app_focus_status
+from nvda_controller import set_app_focus_status, speak, LEVEL_MINIMAL
 
 if TYPE_CHECKING:
     from ..player_frame import PlayerFrame
 
 
 def on_engine_file_changed(frame: 'PlayerFrame', event, new_engine_index: int):
-    """
-    Handles the 'on_file_changed' event from the engine.
-    Updates the frame state, resets loops, and announces the new file.
-    """
     if new_engine_index < 0 or frame.is_exiting:
         return
 
-    # Reset Loop State
     if frame.loop_point_a_ms is not None:
         frame.loop_point_a_ms = None
     if frame.is_file_looping:
@@ -46,21 +41,18 @@ def on_engine_file_changed(frame: 'PlayerFrame', event, new_engine_index: int):
         logging.error("Critical Error: Invalid file index in book data")
         return
 
-    # Update NVDA focus label if applicable
     try:
-        if frame.nvda_focus_label and frame.current_file_path:
+        if frame.current_file_path:
             file_name = os.path.basename(frame.current_file_path)
-            frame.nvda_focus_label.SetLabel(file_name)
+            frame.update_file_display(file_name)
     except Exception:
         pass
 
-    # Update Duration
     try:
         frame.current_file_duration_ms = frame.book_file_durations[frame.current_file_index]
     except IndexError:
         frame.current_file_duration_ms = 0
 
-    # Reset start position for next file
     if frame.start_pos_ms > 0:
         frame.start_pos_ms = 0
 
@@ -172,8 +164,8 @@ def on_escape(frame: 'PlayerFrame', event=None):
     frame.is_exiting = True
 
     # Cleanup resources
-    if hasattr(frame, 'hotkey_manager') and frame.hotkey_manager:
-        frame.hotkey_manager.unregister_hotkeys()
+    if hasattr(frame, 'global_keys_manager') and frame.global_keys_manager:
+        frame.global_keys_manager.unregister_hotkeys()
 
     frame.ui_timer.Stop()
 

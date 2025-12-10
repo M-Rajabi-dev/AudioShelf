@@ -5,11 +5,12 @@
 
 > **The ultimate audiobook player that treats your books like books, not just files.**
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/github/v/release/M-Rajabi-Dev/AudioShelf?label=version&color=blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
 ![Accessibility](https://img.shields.io/badge/Accessibility-Native%20NVDA-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.14-yellow.svg)
-![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![License](https://img.shields.io/github/license/M-Rajabi-Dev/AudioShelf?color=blue)
+![Downloads](https://img.shields.io/github/downloads/M-Rajabi-Dev/AudioShelf/total?label=Downloads&style=flat-square&color=success)
 
 AudioShelf is a specialized desktop application designed for audiobook enthusiasts who need precision, organization, and accessibility. Unlike generic media players, AudioShelf understands that every book is a unique journey with its own progress, history, and settings.
 
@@ -62,15 +63,17 @@ AudioShelf is designed to be keyboard-centric. Press `F1` in the app for the ful
 
 ## 📥 Download & Installation
 
-Get the latest version from the [Releases Page](https://github.com/M-Rajabi-Dev/AudioShelf/releases).
-### Option 1: Installer (Recommended)
-*   Download the file ending in **`-Setup.exe`** (e.g., `AudioShelf-1.0.0-Win64-Setup.exe`).
-*   Run the installer. It will create a shortcut on your desktop and Start Menu.
+Get the latest version directly using the links below:
 
-### Option 2: Portable
-*   Download the file ending in **`-Portable.zip`** (e.g., `AudioShelf-1.0.0-Win64-Portable.zip`).
-*   Extract the zip file anywhere (e.g., on a USB stick).
-*   Run `AudioShelf.exe` inside the folder. No installation required.
+### 💿 Option 1: Installer (Recommended)
+**[Click here to Download Setup (.exe)](https://AudioShelf.github.io/setup)**
+* Run the installer to set up AudioShelf on your PC.
+
+### 🎒 Option 2: Portable (No Install)
+**[Click here to Download Portable (.zip)](https://AudioShelf.github.io/portable)**
+* Extract the zip file anywhere (e.g., on a USB stick) and run `AudioShelf.exe`.
+
+> *View full version history on the [Releases Page](https://github.com/M-Rajabi-Dev/AudioShelf/releases).*
 
 ---
 
@@ -120,5 +123,5 @@ AudioShelf is a free and open-source project developed with passion.
 ## 📜 License
 
 Copyright (c) 2025 Mehdi Rajabi.
-AudioShelf is Free Software: You can use, study share and improve it at your will.
+AudioShelf is Free Software: You can use, study, share and improve it at your will.
 Specifically you can redistribute and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.

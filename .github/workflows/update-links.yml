@@ -1,0 +1,107 @@
+name: Update Download Links
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      test_version:
+        description: 'Version to test'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  update-redirects:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare Version Information
+        id: prep_info
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.test_version }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          
+          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+          CLEAN_VER=${TAG#v}
+          echo "CLEAN_VERSION=$CLEAN_VER" >> $GITHUB_ENV
+
+      # ======================================================
+      # 1. Update Setup Redirect Page
+      # ======================================================
+      - name: Checkout Setup Repository
+        uses: actions/checkout@v3
+        with:
+          repository: AudioShelf/setup
+          token: ${{ secrets.ORG_ADMIN_TOKEN }}
+          path: setup-repo
+
+      - name: Update Setup Redirect
+        run: |
+          cd setup-repo
+          NEW_LINK="https://github.com/M-Rajabi-Dev/AudioShelf/releases/download/${{ env.TAG_NAME }}/AudioShelf-${{ env.CLEAN_VERSION }}-Win64-Setup.exe"
+          
+          sed -i "s|url=.*\"|url=$NEW_LINK\"|g" index.html
+          sed -i "s|window.location.href = \".*\";|window.location.href = \"$NEW_LINK\";|g" index.html
+          
+          git config user.name "Link Updater Bot"
+          git config user.email "bot@audioshelf.io"
+          git add index.html
+          git commit -m "Update download link to ${{ env.TAG_NAME }}" || echo "No changes to commit"
+          git push
+
+      # ======================================================
+      # 2. Update Portable Redirect Page
+      # ======================================================
+      - name: Checkout Portable Repository
+        uses: actions/checkout@v3
+        with:
+          repository: AudioShelf/portable
+          token: ${{ secrets.ORG_ADMIN_TOKEN }}
+          path: portable-repo
+
+      - name: Update Portable Redirect
+        run: |
+          cd portable-repo
+          NEW_LINK="https://github.com/M-Rajabi-Dev/AudioShelf/releases/download/${{ env.TAG_NAME }}/AudioShelf-${{ env.CLEAN_VERSION }}-Win64-Portable.zip"
+          
+          sed -i "s|url=.*\"|url=$NEW_LINK\"|g" index.html
+          sed -i "s|window.location.href = \".*\";|window.location.href = \"$NEW_LINK\";|g" index.html
+          
+          git config user.name "Link Updater Bot"
+          git config user.email "bot@audioshelf.io"
+          git add index.html
+          git commit -m "Update download link to ${{ env.TAG_NAME }}" || echo "No changes to commit"
+          git push
+
+      # ======================================================
+      # 3. Update Download Hub (README & Index)
+      # ======================================================
+      - name: Checkout Download Hub
+        uses: actions/checkout@v3
+        with:
+          repository: AudioShelf/download
+          token: ${{ secrets.ORG_ADMIN_TOKEN }}
+          path: download-hub
+
+      - name: Update Download Hub Files
+        run: |
+          cd download-hub
+          SETUP_LINK="https://github.com/M-Rajabi-Dev/AudioShelf/releases/download/${{ env.TAG_NAME }}/AudioShelf-${{ env.CLEAN_VERSION }}-Win64-Setup.exe"
+          PORTABLE_LINK="https://github.com/M-Rajabi-Dev/AudioShelf/releases/download/${{ env.TAG_NAME }}/AudioShelf-${{ env.CLEAN_VERSION }}-Win64-Portable.zip"
+          
+          # Update README.md
+          sed -i "s|https://AudioShelf.github.io/setup|$SETUP_LINK|g" README.md
+          sed -i "s|https://AudioShelf.github.io/portable|$PORTABLE_LINK|g" README.md
+
+          # Update index.html
+          sed -i "s|https://AudioShelf.github.io/setup|$SETUP_LINK|g" index.html
+          sed -i "s|https://AudioShelf.github.io/portable|$PORTABLE_LINK|g" index.html
+          
+          # Commit and Push changes
+          git config user.name "Link Updater Bot"
+          git config user.email "bot@audioshelf.io"
+          git add README.md index.html
+          git commit -m "Update download hub links to ${{ env.TAG_NAME }}" || echo "No changes to commit"
+          git push

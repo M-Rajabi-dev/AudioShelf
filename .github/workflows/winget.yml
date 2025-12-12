@@ -1,0 +1,21 @@
+name: Publish to Winget
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version Tag (e.g. v1.1.0)'
+        required: true
+
+jobs:
+  winget:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Submit to Winget
+        uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: M-Rajabi-Dev.AudioShelf
+          token: ${{ secrets.ORG_ADMIN_TOKEN }}
+          installers-regex: 'AudioShelf-.*-Win64-Setup.exe$'
+          license: GPL-3.0
+          tag: ${{ inputs.version }}

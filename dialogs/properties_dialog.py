@@ -92,9 +92,18 @@ class PropertiesDialog(wx.Dialog):
 
 
         playback = db_manager.get_playback_state(self.book_id)
+        reading_state = db_manager.get_reading_state(self.book_id)
+        book_type = str(details.get("book_type") or "audio").strip().lower()
         progress_str = _("Not started")
-        
-        if playback and file_count > 0:
+
+        if book_type == "ebook":
+            if reading_state:
+                offset = max(0, int(reading_state.get("char_offset") or 0))
+                total_chars = max(0, int(reading_state.get("total_chars") or 0))
+                if total_chars > 0:
+                    pct = int((offset / total_chars) * 100)
+                    progress_str = _("{0}% ({1} of {2} characters)").format(pct, offset, total_chars)
+        elif playback and file_count > 0:
             idx = playback.get('last_file_index', 0)
             pct = int(((idx + 1) / file_count) * 100)
             progress_str = f"{pct}% ({_('File')} {idx + 1} {_('of')} {file_count})"
@@ -107,6 +116,7 @@ class PropertiesDialog(wx.Dialog):
 
         self.book_data = {
             "title": details.get('title', _("Unknown Title")),
+            "media_type": _("Ebook") if book_type == "ebook" else _("Audio"),
             "path": self.book_path,
             "shelf": shelf_name,
             "files": file_count_str,
@@ -123,6 +133,7 @@ class PropertiesDialog(wx.Dialog):
         lines = [
             f"{_('Title')}: {d.get('title')}",
             "-" * 30,
+            f"{_('Media Type')}: {d.get('media_type')}",
             f"{_('Status')}: {d.get('status')}",
             f"{_('Progress')}: {d.get('progress')}",
             f"{_('Total Duration')}: {d.get('duration')}",

@@ -15,8 +15,14 @@ class BookRepository:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
 
-    def add_book(self, title: str, root_path: str, file_list: List[Tuple[str, int, int]], shelf_id: int = 1) -> \
-            Optional[int]:
+    def add_book(
+            self,
+            title: str,
+            root_path: str,
+            file_list: List[Tuple[str, int, int]],
+            shelf_id: int = 1,
+            book_type: str = "audio"
+    ) -> Optional[int]:
         """
         Adds a new book and its files to the database.
 
@@ -38,8 +44,8 @@ class BookRepository:
             with self.conn:
                 cur = self.conn.cursor()
                 cur.execute(
-                    "INSERT INTO books (title, root_path, shelf_id) VALUES (?, ?, ?)",
-                    (title, root_path, shelf_id)
+                    "INSERT INTO books (title, root_path, book_type, shelf_id) VALUES (?, ?, ?, ?)",
+                    (title, root_path, str(book_type or "audio"), shelf_id)
                 )
                 book_id = cur.lastrowid
 
@@ -112,6 +118,24 @@ class BookRepository:
             return result[0] if result else None
         except sqlite3.Error as e:
             logging.error(f"Error getting book path: {e}", exc_info=True)
+            return None
+        finally:
+            if cur:
+                cur.close()
+
+    def get_book_type(self, book_id: int) -> Optional[str]:
+        """Retrieves the media type for a given book ID."""
+        if self.conn is None:
+            return None
+
+        cur = None
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT book_type FROM books WHERE id = ?", (book_id,))
+            result = cur.fetchone()
+            return str(result[0]).strip().lower() if result and result[0] else "audio"
+        except sqlite3.Error as e:
+            logging.error(f"Error getting book type: {e}", exc_info=True)
             return None
         finally:
             if cur:

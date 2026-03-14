@@ -93,15 +93,19 @@ def on_key_down(frame, event: wx.KeyEvent):
             navigation.goto_next_book_in_library(frame)
         elif shift_down:
             navigation.goto_next_bookmark(frame)
+        elif alt_down:
+            navigation.goto_next_chapter(frame)
         else:
             # Manual navigation: Do NOT trigger End of Book logic
             playback_logic.play_next_file(frame, manual=True)
-            
+             
     elif keycode == wx.WXK_PAGEUP:
         if ctrl_down:
             navigation.goto_prev_book_in_library(frame)
         elif shift_down:
             navigation.goto_prev_bookmark(frame)
+        elif alt_down:
+            navigation.goto_prev_chapter(frame)
         else:
             playback_logic.play_prev_file(frame)
 
@@ -179,6 +183,11 @@ def on_key_down(frame, event: wx.KeyEvent):
             frame.dialog_manager.on_goto_file()
         else:
             frame.dialog_manager.on_show_files()
+    elif keycode == ord('C'):
+        if alt_down and not ctrl_down and not shift_down:
+            frame.dialog_manager.on_show_chapters()
+        else:
+            event.Skip()
     elif keycode == wx.WXK_ESCAPE:
         event_handlers.on_escape(frame)
 

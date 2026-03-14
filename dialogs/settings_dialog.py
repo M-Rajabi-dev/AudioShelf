@@ -8,6 +8,7 @@ from i18n import _
 from nvda_controller import speak, LEVEL_CRITICAL
 
 from .settings import general
+from .settings import audiobookshelf
 from .settings import playback
 from .settings import accessibility
 from .settings import sleeptimer
@@ -30,6 +31,10 @@ class SettingsDialog(wx.Dialog):
         # General Tab
         self.general_panel = general.TabPanel(self.notebook)
         self.notebook.AddPage(self.general_panel, _("General"))
+
+        # AudioBookshelf Tab
+        self.audiobookshelf_panel = audiobookshelf.TabPanel(self.notebook)
+        self.notebook.AddPage(self.audiobookshelf_panel, _("AudioBookshelf"))
 
         # Playback Tab
         self.playback_panel = playback.TabPanel(self.notebook)
@@ -74,6 +79,7 @@ class SettingsDialog(wx.Dialog):
             lang_before = self.general_panel.get_current_language_on_load()
 
             self.general_panel.save_settings()
+            self.audiobookshelf_panel.save_settings()
             self.playback_panel.save_settings()
             self.accessibility_panel.save_settings()
             self.sleeptimer_panel.save_settings()

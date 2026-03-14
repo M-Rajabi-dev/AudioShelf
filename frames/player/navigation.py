@@ -9,6 +9,105 @@ from i18n import _
 from nvda_controller import speak, LEVEL_CRITICAL, LEVEL_MINIMAL
 
 
+def _get_chapters(frame):
+    chapters = getattr(frame, 'book_chapters', None)
+    if isinstance(chapters, list):
+        return chapters
+    return []
+
+
+def _chapter_start_ms(chapter: Dict[str, Any]) -> int:
+    return max(0, int(chapter.get('start_ms') or 0))
+
+
+def _chapter_end_ms(chapter: Dict[str, Any]) -> int:
+    start = _chapter_start_ms(chapter)
+    return max(start, int(chapter.get('end_ms') or start))
+
+
+def _chapter_title(chapter: Dict[str, Any], idx: int) -> str:
+    title = str(chapter.get('title') or '').strip()
+    return title or _("Chapter {0}").format(idx + 1)
+
+
+def _find_current_chapter_index(chapters, current_time_ms: int) -> int:
+    if not chapters:
+        return -1
+
+    current_time_ms = max(0, int(current_time_ms or 0))
+    selected = 0
+    for idx, chapter in enumerate(chapters):
+        start = _chapter_start_ms(chapter)
+        end = _chapter_end_ms(chapter)
+        if start <= current_time_ms < end:
+            return idx
+        if current_time_ms >= start:
+            selected = idx
+    return selected
+
+
+def goto_next_chapter(frame):
+    """Seeks to the start of the next chapter in the current file."""
+    if not frame.engine:
+        return
+
+    chapters = _get_chapters(frame)
+    if not chapters:
+        speak(_("No chapters available for this book."), LEVEL_MINIMAL)
+        return
+
+    try:
+        current_time = frame.engine.get_time()
+        current_idx = _find_current_chapter_index(chapters, current_time)
+        target_idx = current_idx + 1
+        if target_idx >= len(chapters):
+            speak(_("End of chapters reached."), LEVEL_MINIMAL)
+            return
+
+        chapter = chapters[target_idx]
+        frame.engine.set_time(_chapter_start_ms(chapter))
+        speak(_("Next chapter: {0}").format(_chapter_title(chapter, target_idx)), LEVEL_MINIMAL)
+    except Exception as e:
+        logging.error(f"Error in goto_next_chapter: {e}", exc_info=True)
+        speak(_("Error moving to next chapter."), LEVEL_CRITICAL)
+
+
+def goto_prev_chapter(frame):
+    """Seeks to the start of the previous chapter (or restarts current chapter)."""
+    if not frame.engine:
+        return
+
+    chapters = _get_chapters(frame)
+    if not chapters:
+        speak(_("No chapters available for this book."), LEVEL_MINIMAL)
+        return
+
+    try:
+        current_time = frame.engine.get_time()
+        current_idx = _find_current_chapter_index(chapters, current_time)
+        if current_idx < 0:
+            speak(_("Start of chapters reached."), LEVEL_MINIMAL)
+            return
+
+        current_start = _chapter_start_ms(chapters[current_idx])
+        if current_time > current_start + 3000:
+            frame.engine.set_time(current_start)
+            speak(_("Chapter restarted: {0}").format(_chapter_title(chapters[current_idx], current_idx)), LEVEL_MINIMAL)
+            return
+
+        target_idx = current_idx - 1
+        if target_idx < 0:
+            speak(_("Start of chapters reached."), LEVEL_MINIMAL)
+            return
+
+        chapter = chapters[target_idx]
+        frame.engine.set_time(_chapter_start_ms(chapter))
+        speak(_("Previous chapter: {0}").format(_chapter_title(chapter, target_idx)), LEVEL_MINIMAL)
+    except Exception as e:
+        logging.error(f"Error in goto_prev_chapter: {e}", exc_info=True)
+        speak(_("Error moving to previous chapter."), LEVEL_CRITICAL)
+
+
 def jump_to_bookmark(frame, data: Dict[str, Any]):
     """
     Jumps the playback engine to the file and position specified in the bookmark data.

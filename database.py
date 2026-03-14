@@ -115,6 +115,9 @@ class DatabaseManager:
             'smart_resume_rewind_ms': '10000',
             'master_volume': '100',
             'last_run_version': '0.0.0',
+            'audiobookshelf_auto_upload': 'True',
+            'audiobookshelf_upload_library_id': '',
+            'audiobookshelf_upload_folder_id': '',
         }
 
         self.default_eq_presets = {
@@ -199,6 +202,7 @@ class DatabaseManager:
             book_columns = [col[1] for col in cur.fetchall()]
 
             new_book_columns = {
+                'book_type': "TEXT DEFAULT 'audio'",
                 'author': 'TEXT',
                 'narrator': 'TEXT',
                 'genre': 'TEXT',
@@ -290,10 +294,16 @@ class DatabaseManager:
         with self.db_lock:
             self.settings_repo.set_setting(key, value)
 
-    def add_book(self, title: str, root_path: str, file_list: List[Tuple[str, int, int]], shelf_id: int = 1) -> \
-            Optional[int]:
+    def add_book(
+            self,
+            title: str,
+            root_path: str,
+            file_list: List[Tuple[str, int, int]],
+            shelf_id: int = 1,
+            book_type: str = "audio"
+    ) -> Optional[int]:
         with self.db_lock:
-            return self.book_repo.add_book(title, root_path, file_list, shelf_id)
+            return self.book_repo.add_book(title, root_path, file_list, shelf_id, book_type=book_type)
 
     def get_book_files(self, book_id: int) -> List[Tuple[int, str, int, int]]:
         return self.book_repo.get_book_files(book_id)
@@ -365,6 +375,15 @@ class DatabaseManager:
     def add_bookmark(self, book_id: int, file_index: int, position_ms: int, title: str, note: str) -> Optional[int]:
         with self.db_lock:
             return self.playback_repo.add_bookmark(book_id, file_index, position_ms, title, note)
+
+    def get_reading_state(self, book_id: int) -> Optional[Dict[str, Any]]:
+        if self.conn is None:
+            self._establish_connection()
+        return self.playback_repo.get_reading_state(book_id)
+
+    def save_reading_state(self, book_id: int, char_offset: int, total_chars: int):
+        with self.db_lock:
+            return self.playback_repo.save_reading_state(book_id, char_offset, total_chars)
 
     def get_bookmarks_for_book(self, book_id: int) -> List[Dict[str, Any]]:
         return self.playback_repo.get_bookmarks_for_book(book_id)

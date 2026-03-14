@@ -11,16 +11,25 @@ import json
 import concurrent.futures
 import wx.lib.newevent
 import book_scanner
+from media_types import infer_book_type_from_file_rows, filter_files_by_book_type
 
+from audiobookshelf_client import AudiobookshelfClient, AudiobookshelfError
 from database import db_manager
-from db_layer.helpers import find_missing_books
+from db_layer.helpers import find_missing_books, is_remote_source
 from i18n import _
 from nvda_controller import speak, LEVEL_CRITICAL, LEVEL_MINIMAL
+from playback.abs_link_resolver import resolve_audiobookshelf_target
 from . import list_manager
 from . import history_manager
 
 METADATA_FILENAME_DIR = ".audioshelf_metadata.json"
 METADATA_VERSION = 2
+SETTING_AUDIOBOOKSHELF_SERVER_URL = "audiobookshelf_server_url"
+SETTING_AUDIOBOOKSHELF_API_KEY = "audiobookshelf_api_key"
+SETTING_AUDIOBOOKSHELF_AUTO_UPLOAD = "audiobookshelf_auto_upload"
+SETTING_AUDIOBOOKSHELF_UPLOAD_LIBRARY_ID = "audiobookshelf_upload_library_id"
+SETTING_AUDIOBOOKSHELF_UPLOAD_FOLDER_ID = "audiobookshelf_upload_folder_id"
+AUDIOBOOKSHELF_UPLOAD_TIMEOUT_SECONDS = 600
 
 
 def _reset_busy_state(frame):
@@ -33,6 +42,124 @@ def _reset_busy_state(frame):
             pass
     if wx.IsBusy():
         wx.EndBusyCursor()
+
+
+def _should_auto_upload_to_audiobookshelf() -> bool:
+    flag = db_manager.get_setting(SETTING_AUDIOBOOKSHELF_AUTO_UPLOAD)
+    if flag is None:
+        return True
+    return str(flag).strip().lower() not in {"false", "0", "no", "off"}
+
+
+def _collect_local_file_paths_for_book(book_id: int) -> list[str]:
+    file_rows = db_manager.get_book_files(book_id)
+    file_paths = []
+    for row in file_rows:
+        if not row or len(row) < 2:
+            continue
+        path = row[1]
+        if not path or is_remote_source(path):
+            continue
+        if os.path.isfile(path):
+            file_paths.append(path)
+    return file_paths
+
+
+def schedule_audiobookshelf_auto_upload(frame, book_id: int, announce: bool):
+    if not _should_auto_upload_to_audiobookshelf():
+        logging.info(f"Audiobookshelf auto-upload skipped for book {book_id}: disabled in settings.")
+        return
+
+    root_path = db_manager.book_repo.get_book_path(book_id)
+    if not root_path:
+        logging.warning(f"Audiobookshelf auto-upload skipped for book {book_id}: missing root path.")
+        return
+    if is_remote_source(root_path):
+        logging.info(f"Audiobookshelf auto-upload skipped for book {book_id}: remote source.")
+        if announce:
+            speak(_("Audiobookshelf upload skipped for remote source books."), LEVEL_MINIMAL)
+        return
+
+    server_url = (db_manager.get_setting(SETTING_AUDIOBOOKSHELF_SERVER_URL) or "").strip()
+    api_key = (db_manager.get_setting(SETTING_AUDIOBOOKSHELF_API_KEY) or "").strip()
+    if not server_url or not api_key:
+        logging.info(f"Audiobookshelf auto-upload skipped for book {book_id}: server URL or API key not configured.")
+        if announce:
+            speak(_("Audiobookshelf upload skipped. Configure server URL and API key in settings."), LEVEL_CRITICAL)
+        return
+
+    logging.info(f"Audiobookshelf auto-upload queued for book {book_id}.")
+    worker = threading.Thread(
+        target=_audiobookshelf_auto_upload_worker,
+        args=(book_id, server_url, api_key, announce),
+        daemon=True
+    )
+    worker.start()
+
+
+def _audiobookshelf_auto_upload_worker(book_id: int, server_url: str, api_key: str, announce: bool):
+    try:
+        details = db_manager.get_book_details(book_id) or {}
+        title = str(details.get("title") or f"Book {book_id}").strip() or f"Book {book_id}"
+        author = str(details.get("author") or "").strip() or None
+
+        file_paths = _collect_local_file_paths_for_book(book_id)
+        if not file_paths:
+            logging.warning(f"Audiobookshelf auto-upload skipped for book {book_id}: no local files found.")
+            if announce:
+                wx.CallAfter(lambda: speak(_("Audiobookshelf upload skipped. No local files were found."), LEVEL_CRITICAL))
+            return
+
+        client = AudiobookshelfClient(server_url, api_key, timeout_seconds=AUDIOBOOKSHELF_UPLOAD_TIMEOUT_SECONDS)
+        preferred_library_id = (db_manager.get_setting(SETTING_AUDIOBOOKSHELF_UPLOAD_LIBRARY_ID) or "").strip()
+        preferred_folder_id = (db_manager.get_setting(SETTING_AUDIOBOOKSHELF_UPLOAD_FOLDER_ID) or "").strip()
+        library_id, folder_id = client.resolve_upload_destination(preferred_library_id, preferred_folder_id)
+
+        client.upload_library_item(
+            title=title,
+            author=author,
+            series=None,
+            file_paths=file_paths,
+            library_id=library_id,
+            folder_id=folder_id
+        )
+        try:
+            client.trigger_library_scan(library_id)
+        except AudiobookshelfError as scan_error:
+            logging.warning(
+                f"Audiobookshelf upload complete for book {book_id}, but library scan trigger failed: {scan_error}"
+            )
+
+        # Best-effort mapping so chapter/progress sync can work for local books that were just uploaded.
+        try:
+            linked_base_url, linked_item_id, linked_api_key = resolve_audiobookshelf_target(
+                book_id=book_id,
+                root_path=db_manager.book_repo.get_book_path(book_id),
+                preferred_stream_url=file_paths[0] if file_paths else None,
+                allow_lookup=True,
+                timeout_seconds=15,
+            )
+            if linked_base_url and linked_item_id and linked_api_key:
+                logging.info(
+                    f"Audiobookshelf link stored for local book {book_id}: item={linked_item_id}, base={linked_base_url}"
+                )
+        except Exception as link_error:
+            logging.warning(f"Audiobookshelf link resolve failed for local book {book_id}: {link_error}")
+
+        logging.info(
+            f"Audiobookshelf upload complete for book {book_id}: "
+            f"title='{title}', library={library_id}, folder={folder_id}, files={len(file_paths)}"
+        )
+        if announce:
+            wx.CallAfter(lambda: speak(_("Uploaded to Audiobookshelf server."), LEVEL_MINIMAL))
+    except AudiobookshelfError as e:
+        logging.warning(f"Audiobookshelf upload failed for book {book_id}: {e}")
+        if announce:
+            wx.CallAfter(lambda: speak(_("Audiobookshelf upload failed."), LEVEL_CRITICAL))
+    except Exception as e:
+        logging.error(f"Unexpected Audiobookshelf upload error for book {book_id}: {e}", exc_info=True)
+        if announce:
+            wx.CallAfter(lambda: speak(_("Audiobookshelf upload failed."), LEVEL_CRITICAL))
 
 
 def _clean_path(path: str) -> str:
@@ -60,16 +187,16 @@ def on_add_book(frame, event):
 
 
 def on_add_single_file(frame, event):
-    """Triggers the dialog to add a single audio file as a book."""
+    """Triggers the dialog to add a single media file as a book."""
     if frame.is_busy_processing:
         speak(_("Already scanning. Please wait."), LEVEL_CRITICAL)
         return
 
     exts = ["*" + ext for ext in book_scanner.SUPPORTED_EXTENSIONS]
     wildcard_str = ";".join(exts)
-    wildcard = f"{_('Audio Files')} ({wildcard_str})|{wildcard_str}|{_('All Files')} (*.*)|*.*"
+    wildcard = f"{_('Supported Media Files')} ({wildcard_str})|{wildcard_str}|{_('All Files')} (*.*)|*.*"
 
-    dlg = wx.FileDialog(frame, _("Choose an audio file..."),
+    dlg = wx.FileDialog(frame, _("Choose a media file..."),
                         wildcard=wildcard,
                         style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
     if dlg.ShowModal() == wx.ID_OK:
@@ -143,6 +270,12 @@ def process_book_import(book_path, book_name, file_list, shelf_id):
     Central logic to import a book, detecting and applying metadata if available.
     Returns (book_id, import_successful).
     """
+    normalized_file_list = list(file_list or [])
+    book_type = infer_book_type_from_file_rows(normalized_file_list)
+    filtered_file_list = filter_files_by_book_type(normalized_file_list, book_type)
+    if filtered_file_list:
+        normalized_file_list = filtered_file_list
+
     metadata_filepath = None
     if os.path.isdir(book_path):
         possible_meta = os.path.join(book_path, METADATA_FILENAME_DIR)
@@ -170,12 +303,21 @@ def process_book_import(book_path, book_name, file_list, shelf_id):
             metadata = None
 
     if not metadata:
-        book_id = db_manager.add_book(book_name, book_path, file_list, shelf_id)
+        book_id = db_manager.add_book(
+            book_name,
+            book_path,
+            normalized_file_list,
+            shelf_id,
+            book_type=book_type
+        )
         return book_id, False
 
     # Import with metadata
     try:
         imported_title = metadata.get('title', book_name)
+        imported_book_type = str(metadata.get('book_type') or book_type).strip().lower()
+        if imported_book_type not in {"audio", "ebook"}:
+            imported_book_type = book_type
         author = metadata.get('author')
         narrator = metadata.get('narrator')
         genre = metadata.get('genre')
@@ -188,7 +330,7 @@ def process_book_import(book_path, book_name, file_list, shelf_id):
         current_relpath_to_index = {}
         is_dir_source = os.path.isdir(book_path)
 
-        for fp, idx, dur in file_list:
+        for fp, idx, dur in normalized_file_list:
             clean_fp = _clean_path(fp)
             try:
                 if is_dir_source:
@@ -210,7 +352,7 @@ def process_book_import(book_path, book_name, file_list, shelf_id):
                     index_map[old_idx] = current_relpath_to_index[os.path.normcase(norm_rel_p)]
                     found_files_count += 1
         else:
-            if len(file_list) == 1:
+            if len(normalized_file_list) == 1:
                 index_map[0] = 0
                 found_files_count = 1
 
@@ -218,10 +360,22 @@ def process_book_import(book_path, book_name, file_list, shelf_id):
 
         if found_files_count == 0:
             logging.warning("No matching files found in metadata import. Fallback to normal add.")
-            book_id = db_manager.add_book(book_name, book_path, file_list, shelf_id)
+            book_id = db_manager.add_book(
+                book_name,
+                book_path,
+                normalized_file_list,
+                shelf_id,
+                book_type=imported_book_type
+            )
             return book_id, False
 
-        new_book_id = db_manager.add_book(imported_title, book_path, file_list, shelf_id)
+        new_book_id = db_manager.add_book(
+            imported_title,
+            book_path,
+            normalized_file_list,
+            shelf_id,
+            book_type=imported_book_type
+        )
         if not new_book_id:
             return None, False
 
@@ -244,8 +398,15 @@ def process_book_import(book_path, book_name, file_list, shelf_id):
                 playback_state.get('last_position_ms', 0), 
                 playback_state.get('last_speed_rate', 1.0),
                 playback_state.get('last_eq_settings', "0,0,0,0,0,0,0,0,0,0"),
-                playback_state.get('is_eq_enabled', False), 
-                0
+                playback_state.get('is_eq_enabled', False)
+            )
+
+        reading_state = metadata.get('reading_state')
+        if isinstance(reading_state, dict):
+            db_manager.save_reading_state(
+                new_book_id,
+                reading_state.get('char_offset', 0),
+                reading_state.get('total_chars', 0)
             )
 
         for bm in metadata.get('bookmarks', []):
@@ -288,6 +449,7 @@ def on_scan_complete(frame, event: wx.lib.newevent.NewEvent):
         if book_id:
             success = True
             book_id_to_select = book_id
+            schedule_audiobookshelf_auto_upload(frame, book_id, announce=not is_batch)
             if imported and not is_batch:
                 speak(_("Book added with imported data."), LEVEL_CRITICAL)
             elif not is_batch:
@@ -355,7 +517,9 @@ def _background_duration_worker(frame, book_id, file_list):
         db_files = db_manager.get_book_files(book_id)
         
         if len(db_files) != len(file_list):
-            return
+            logging.debug(
+                f"Duration worker file count mismatch for book {book_id}: db={len(db_files)} scanned={len(file_list)}"
+            )
 
         tasks = []
         for i, (db_id, path, idx, dur) in enumerate(db_files):

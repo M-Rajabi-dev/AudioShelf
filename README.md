@@ -45,6 +45,8 @@ Most players treat audio files equally. AudioShelf treats every book as a distin
 *   **Auto-Updater:** Automatically checks for and installs the latest updates at startup.
 *   **Sleep Timer:** Configurable timer with system actions (Shutdown/Sleep/Hibernate).
 *   **Portable Mode:** Run AudioShelf directly from a USB drive without installation.
+*   **Audiobookshelf Import:** Connect to your self-hosted Audiobookshelf server with an API key and stream books directly, with optional per-book local download from the context menu.
+*   **Audiobookshelf Progress Sync:** AudioShelf can pull your latest position from Audiobookshelf when opening a streamed book and push listening progress back while you play.
 
 ---
 
@@ -57,6 +59,8 @@ AudioShelf is designed to be keyboard-centric. Press `F1` in the app for the ful
 | **Play / Pause** | `Space` |
 | **Stop (Reset)** | `Shift + Space` |
 | **Rewind / Forward** | `Left` / `Right` Arrow |
+| **Chapter Navigation** | `Alt + PageUp` / `Alt + PageDown` |
+| **Chapter List** | `Alt + C` |
 | **Volume Control** | `Up` / `Down` Arrow |
 | **Speed Control** | `J` (Faster) / `H` (Slower) / `K` (Reset) |
 | **Quick Bookmark** | `B` |
@@ -110,6 +114,11 @@ AudioShelf is built using **Python 3.14**, but supports Python 3.10+.
 3. **Run the application:**
    ```bash
    python AudioShelf.py
+   ```
+
+4. **Run the test suite:**
+   ```bash
+   python -m unittest discover -s tests -p "test_*.py"
    ```
 
 ---

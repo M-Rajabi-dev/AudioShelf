@@ -35,10 +35,12 @@ _refresh_all_views = action_utils.refresh_all_views
 
 # Re-export Book Actions
 on_context_play = book_actions.on_context_play
+on_context_play_from_chapter = book_actions.on_context_play_from_chapter
 on_context_rename_book = book_actions.on_context_rename_book
 on_context_properties = book_actions.on_context_properties
 on_context_open_location = book_actions.on_context_open_location
 on_context_update_location = book_actions.on_context_update_location
+on_context_download_from_server = book_actions.on_context_download_from_server
 on_context_delete_book = book_actions.on_context_delete_book
 on_context_delete_computer = book_actions.on_context_delete_computer
 on_context_pin_book = book_actions.on_context_pin_book

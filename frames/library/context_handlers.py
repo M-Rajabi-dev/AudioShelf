@@ -5,6 +5,7 @@
 import wx
 from typing import Any
 from database import db_manager
+from db_layer.helpers import is_remote_source
 from i18n import _
 from . import list_manager
 from . import history_manager
@@ -104,20 +105,28 @@ def _build_book_menu(frame, book_id: int, source: str, selected_count: int):
     book_details = db_manager.book_repo.get_book_details(book_id)
     is_pinned = False
     is_finished = False
+    book_type = "audio"
     
     if book_details:
         is_pinned = book_details.get('is_pinned', False)
         is_finished = book_details.get('is_finished', False)
+        book_type = str(book_details.get('book_type') or "audio").strip().lower()
+    is_remote_book = bool(book_details and is_remote_source(book_details.get('root_path')))
+    is_ebook = (book_type == "ebook")
 
     is_single_selection = (selected_count <= 1)
     menu = wx.Menu()
 
-    play_item = wx.MenuItem(menu, lf.ID_TREE_PLAY, _("&Play Book"))
+    play_item = wx.MenuItem(menu, lf.ID_TREE_PLAY, _("&Read Book") if is_ebook else _("&Play Book"))
     try:
         play_item.SetBitmap(wx.ArtProvider.GetBitmap(wx.ART_EXECUTABLE_FILE, wx.ART_MENU))
     except Exception:
         pass
     menu.Append(play_item)
+    if is_remote_book and not is_ebook:
+        play_chapter_item = wx.MenuItem(menu, lf.ID_TREE_PLAY_FROM_CHAPTER, _("Play from &Chapter..."))
+        play_chapter_item.Enable(is_single_selection)
+        menu.Append(play_chapter_item)
 
     if is_pinned:
         unpin_item = wx.MenuItem(menu, lf.ID_TREE_UNPIN_BOOK, _("&Unpin Book"))
@@ -175,6 +184,10 @@ def _build_book_menu(frame, book_id: int, source: str, selected_count: int):
     update_loc = wx.MenuItem(menu, lf.ID_TREE_UPDATE_LOCATION, _("Update Book Location..."))
     update_loc.Enable(is_single_selection)
     menu.Append(update_loc)
+
+    if is_remote_book:
+        download_item = wx.MenuItem(menu, lf.ID_TREE_DOWNLOAD_FROM_SERVER, _("Download from Server..."))
+        menu.Append(download_item)
 
     export_item = wx.MenuItem(menu, lf.ID_TREE_EXPORT_DATA, _("Save Data to Source..."))
     export_item.Enable(is_single_selection)

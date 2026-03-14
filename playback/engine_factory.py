@@ -59,6 +59,17 @@ def create_engine(hwnd: Optional[int] = None) -> BasePlaybackEngine:
         from .mpv_engine import MpvEngine
         return MpvEngine(hwnd=hwnd)
 
+    except ModuleNotFoundError as e:
+        missing_name = getattr(e, "name", "")
+        if missing_name == "mpv":
+            logging.critical("MPV engine failed: python-mpv package is missing.", exc_info=True)
+            raise RuntimeError(_(
+                "The python-mpv package is missing. Install dependencies with: pip install -r requirements.txt"
+            )) from e
+
+        logging.critical("MPV engine failed due to missing Python module.", exc_info=True)
+        raise RuntimeError(_("A required playback dependency is missing: {}").format(missing_name or e)) from e
+
     except ImportError as e:
         logging.critical("MPV engine failed: python-mpv is not installed or libmpv-2.dll failed to load.",
                          exc_info=True)

@@ -9,6 +9,10 @@ import subprocess
 import shutil
 import logging
 import threading
+import re
+from urllib.parse import urlparse, unquote
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 from database import db_manager
 from i18n import _, ngettext
@@ -21,6 +25,8 @@ from .. import list_manager
 from .. import history_manager
 from .. import search_handlers
 from .. import task_handlers
+from db_layer.helpers import is_remote_source
+from .. import chapter_selector
 
 
 def on_context_play(frame, event, source='library'):
@@ -36,6 +42,31 @@ def on_context_play(frame, event, source='library'):
         evt = wx.ListEvent(wx.wxEVT_LIST_ITEM_ACTIVATED)
         evt.SetIndex(frame.last_search_focus_index)
         search_handlers.on_item_activated(frame, evt)
+
+
+def on_context_play_from_chapter(frame, event, source='library'):
+    selected_books = action_utils.get_selected_book_data_list(frame, source)
+    if len(selected_books) > 1:
+        speak(_("Cannot open chapters for multiple books at once."), LEVEL_CRITICAL)
+        return
+
+    book_info = action_utils.get_focused_book_info(frame, source)
+    if not book_info:
+        return
+
+    book_id, _book_title = book_info
+    start_ms = chapter_selector.prompt_abs_chapter_start(
+        parent=frame,
+        book_id=book_id,
+        current_total_position_ms=0,
+        announce_if_unavailable=True
+    )
+    if start_ms is None:
+        return
+
+    frame.pending_initial_seek_book_id = book_id
+    frame.pending_initial_seek_ms = start_ms
+    on_context_play(frame, event, source=source)
 
 
 def on_context_rename_book(frame, event, source='library'):
@@ -99,6 +130,10 @@ def on_context_open_location(frame, event, source='library'):
     book_id, _ = book_info
     book_path = db_manager.book_repo.get_book_path(book_id)
 
+    if is_remote_source(book_path):
+        speak(_("This book is streamed from Audiobookshelf and has no local folder."), LEVEL_MINIMAL)
+        return
+
     if book_path and os.path.exists(book_path):
         try:
             if sys.platform == "win32":
@@ -128,6 +163,11 @@ def on_context_update_location(frame, event, source='library'):
         return
 
     book_id, book_title = book_info
+    current_path = db_manager.book_repo.get_book_path(book_id)
+    if is_remote_source(current_path):
+        speak(_("Cannot update location for Audiobookshelf server items."), LEVEL_CRITICAL)
+        return
+
     if frame.is_busy_processing:
         speak(_("Already scanning. Please wait."), LEVEL_CRITICAL)
         return
@@ -152,6 +192,184 @@ def on_context_update_location(frame, event, source='library'):
     finally:
         if dlg:
             dlg.Destroy()
+
+
+def _safe_path_component(name: str) -> str:
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", (name or "").strip())
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    return cleaned[:120]
+
+
+def _derive_item_short_id(root_path: str) -> str:
+    if not root_path:
+        return "item"
+    marker = "/item/"
+    idx = root_path.rfind(marker)
+    if idx == -1:
+        return "item"
+    return root_path[idx + len(marker): idx + len(marker) + 8] or "item"
+
+
+def _guess_filename_from_url(url: str, index: int) -> str:
+    parsed = urlparse(url)
+    raw_name = unquote(os.path.basename(parsed.path or "")).strip()
+    if not raw_name:
+        return f"track_{index + 1:03d}.m4b"
+
+    stem, ext = os.path.splitext(raw_name)
+    if not ext:
+        ext = ".m4b"
+
+    safe_stem = _safe_path_component(stem) or f"track_{index + 1:03d}"
+    safe_ext = re.sub(r"[^A-Za-z0-9.]", "", ext) or ".m4b"
+    if not safe_ext.startswith("."):
+        safe_ext = "." + safe_ext
+    return f"{safe_stem}{safe_ext[:10]}"
+
+
+def _download_url_to_file(url: str, destination_path: str):
+    tmp_path = destination_path + ".part"
+    req = Request(url=url, method="GET")
+
+    try:
+        with urlopen(req, timeout=120) as response, open(tmp_path, "wb") as out:
+            while True:
+                chunk = response.read(1024 * 512)
+                if not chunk:
+                    break
+                out.write(chunk)
+        os.replace(tmp_path, destination_path)
+    except (HTTPError, URLError, OSError) as e:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        raise RuntimeError(str(e)) from e
+
+
+def on_context_download_from_server(frame, event, source='library'):
+    if frame.is_busy_processing:
+        speak(_("Already processing. Please wait."), LEVEL_CRITICAL)
+        return
+
+    selected_books = action_utils.get_selected_book_data_list(frame, source)
+    if not selected_books:
+        focused_book = action_utils.get_focused_book_info(frame, source)
+        if focused_book:
+            selected_books = [focused_book]
+        else:
+            return
+
+    remote_books = []
+    for (book_id, book_title) in selected_books:
+        book_path = db_manager.book_repo.get_book_path(book_id)
+        if is_remote_source(book_path):
+            remote_books.append((book_id, book_title, book_path))
+
+    if not remote_books:
+        speak(_("No streamed server books selected."), LEVEL_MINIMAL)
+        return
+
+    default_dir = db_manager.get_setting("audiobookshelf_download_dir") or os.path.join(
+        os.path.expanduser("~"), "Downloads", "AudioShelf"
+    )
+    dlg = wx.DirDialog(
+        frame,
+        _("Choose where downloaded books should be saved:"),
+        defaultPath=default_dir,
+        style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST
+    )
+    try:
+        if dlg.ShowModal() != wx.ID_OK:
+            speak(_("Download cancelled."), LEVEL_MINIMAL)
+            return
+        download_root = dlg.GetPath().strip()
+    finally:
+        dlg.Destroy()
+
+    if not download_root:
+        speak(_("Download folder is required."), LEVEL_CRITICAL)
+        return
+
+    db_manager.set_setting("audiobookshelf_download_dir", download_root)
+
+    frame.is_busy_processing = True
+    wx.BeginBusyCursor()
+    speak(_("Downloading {0} books...").format(len(remote_books)), LEVEL_MINIMAL)
+
+    thread = threading.Thread(
+        target=_download_remote_books_worker,
+        args=(frame, remote_books, download_root),
+        daemon=True
+    )
+    thread.start()
+
+
+def _download_remote_books_worker(frame, remote_books, download_root):
+    downloaded_count = 0
+    failed_count = 0
+    skipped_count = 0
+
+    for (book_id, book_title, root_path) in remote_books:
+        try:
+            files_data = db_manager.get_book_files(book_id)
+            if not files_data:
+                skipped_count += 1
+                continue
+
+            short_id = _derive_item_short_id(root_path)
+            safe_title = _safe_path_component(book_title) or f"Book_{book_id}"
+            target_book_dir = os.path.join(download_root, f"{safe_title} [ABS-{short_id}]")
+            os.makedirs(target_book_dir, exist_ok=True)
+
+            new_file_list = []
+            used_names = set()
+            for row_index, (_file_id, file_url, file_index, duration_ms) in enumerate(files_data):
+                filename = _guess_filename_from_url(file_url, row_index)
+                stem, ext = os.path.splitext(filename)
+                candidate = filename
+                n = 2
+                while candidate.lower() in used_names:
+                    candidate = f"{stem} ({n}){ext}"
+                    n += 1
+                used_names.add(candidate.lower())
+
+                local_path = os.path.join(target_book_dir, candidate)
+                if not os.path.exists(local_path) or os.path.getsize(local_path) == 0:
+                    _download_url_to_file(file_url, local_path)
+
+                new_file_list.append((local_path, file_index, duration_ms or 0))
+
+            new_file_list.sort(key=lambda x: x[1])
+            db_manager.update_book_source(book_id, target_book_dir, new_file_list)
+            downloaded_count += 1
+
+        except Exception as e:
+            logging.error(f"Failed to download book '{book_title}' (ID {book_id}): {e}", exc_info=True)
+            failed_count += 1
+
+    wx.CallAfter(_finalize_remote_download, frame, downloaded_count, failed_count, skipped_count)
+
+
+def _finalize_remote_download(frame, downloaded_count, failed_count, skipped_count):
+    task_handlers._reset_busy_state(frame)
+    action_utils.refresh_all_views(frame)
+
+    parts = []
+    if downloaded_count:
+        parts.append(_("{0} downloaded").format(downloaded_count))
+    if skipped_count:
+        parts.append(_("{0} skipped").format(skipped_count))
+    if failed_count:
+        parts.append(_("{0} failed").format(failed_count))
+
+    if not parts:
+        speak(_("No books were downloaded."), LEVEL_MINIMAL)
+        return
+
+    level = LEVEL_CRITICAL if (downloaded_count or failed_count) else LEVEL_MINIMAL
+    speak(_("Download complete: {0}.").format(", ".join(parts)), level)
 
 
 def on_context_delete_book(frame, event, source='library'):

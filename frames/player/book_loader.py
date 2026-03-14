@@ -6,20 +6,126 @@ import wx
 import os
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple
 from database import db_manager
 from i18n import _
+from audiobookshelf_client import AudiobookshelfClient, AudiobookshelfError
+from playback.abs_link_resolver import resolve_audiobookshelf_target
+from playback.abs_sync_utils import (
+    compute_total_position_ms,
+    split_total_position_ms,
+    parse_local_timestamp_to_epoch_ms,
+    should_prefer_remote_progress,
+)
 from . import event_handlers
 
 class BookLoader:
     def __init__(self, frame):
         self.frame = frame
 
+    def _get_abs_client_and_item(self, root_path: Optional[str], first_stream_url: Optional[str]) -> Tuple[Optional[AudiobookshelfClient], Optional[str]]:
+        base_url, item_id, api_key = resolve_audiobookshelf_target(
+            book_id=self.frame.book_id,
+            root_path=root_path,
+            preferred_stream_url=first_stream_url,
+            allow_lookup=True,
+            timeout_seconds=10,
+        )
+        if not base_url or not item_id or not api_key:
+            return None, None
+
+        try:
+            return AudiobookshelfClient(base_url, api_key, timeout_seconds=10), item_id
+        except Exception:
+            return None, None
+
+    def _load_remote_chapters(
+            self,
+            root_path: Optional[str],
+            first_stream_url: Optional[str]
+    ) -> list:
+        client, item_id = self._get_abs_client_and_item(root_path, first_stream_url)
+        if not client or not item_id:
+            return []
+
+        try:
+            chapters = client.get_item_chapters(item_id)
+        except AudiobookshelfError as e:
+            logging.warning(f"Audiobookshelf chapter fetch failed for item {item_id}: {e}")
+            return []
+        except Exception as e:
+            logging.warning(f"Audiobookshelf chapter fetch failed for item {item_id}: {e}")
+            return []
+
+        normalized = []
+        for idx, chapter in enumerate(chapters):
+            try:
+                start_ms = max(0, int(chapter.start_ms))
+                end_ms = max(start_ms, int(chapter.end_ms))
+                title = str(chapter.title or "").strip() or f"Chapter {idx + 1}"
+                normalized.append({
+                    "index": idx,
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                    "title": title,
+                })
+            except Exception:
+                continue
+        return normalized
+
+    def _apply_remote_progress_if_newer(
+            self,
+            root_path: Optional[str],
+            local_state: Optional[dict],
+            local_file_index: int,
+            local_start_pos_ms: int,
+            file_durations_ms: list,
+            first_stream_url: Optional[str]
+    ) -> Tuple[int, int]:
+        client, item_id = self._get_abs_client_and_item(root_path, first_stream_url)
+        if not client or not item_id:
+            return local_file_index, local_start_pos_ms
+
+        try:
+            remote_progress = client.get_media_progress(item_id)
+        except AudiobookshelfError as e:
+            logging.warning(f"Audiobookshelf progress fetch failed for item {item_id}: {e}")
+            return local_file_index, local_start_pos_ms
+        except Exception as e:
+            logging.warning(f"Audiobookshelf progress fetch failed for item {item_id}: {e}")
+            return local_file_index, local_start_pos_ms
+
+        if not remote_progress:
+            return local_file_index, local_start_pos_ms
+
+        remote_current_time_sec = float(remote_progress.get("currentTime") or 0.0)
+        remote_position_ms = max(0, int(remote_current_time_sec * 1000))
+        remote_last_update_ms = remote_progress.get("lastUpdate")
+        try:
+            remote_last_update_ms = int(remote_last_update_ms) if remote_last_update_ms is not None else None
+        except (TypeError, ValueError):
+            remote_last_update_ms = None
+
+        local_last_update_ms = parse_local_timestamp_to_epoch_ms((local_state or {}).get("last_played_at"))
+        local_total_position_ms = compute_total_position_ms(file_durations_ms, local_file_index, local_start_pos_ms)
+
+        if should_prefer_remote_progress(
+                remote_last_update_ms=remote_last_update_ms,
+                local_last_update_ms=local_last_update_ms,
+                remote_total_position_ms=remote_position_ms,
+                local_total_position_ms=local_total_position_ms,
+        ):
+            remote_file_index, remote_file_pos_ms = split_total_position_ms(file_durations_ms, remote_position_ms)
+            logging.info(f"Audiobookshelf progress applied for item {item_id}: file={remote_file_index}, pos={remote_file_pos_ms}ms")
+            return remote_file_index, remote_file_pos_ms
+
+        return local_file_index, local_start_pos_ms
+
     def load_book_data(self):
         frame = self.frame
         try:
+            details = db_manager.get_book_details(frame.book_id)
             if not frame.book_title:
-                details = db_manager.get_book_details(frame.book_id)
                 frame.book_title = details['title'] if details else _("Unknown Book")
 
             frame.SetTitle(frame.book_title)
@@ -32,6 +138,7 @@ class BookLoader:
 
             frame.book_file_durations = [duration for (_, _, _, duration) in frame.book_files_data]
             frame.total_book_duration_ms = sum(frame.book_file_durations)
+            frame.book_chapters = []
 
             state = db_manager.get_playback_state(frame.book_id)
 
@@ -62,6 +169,24 @@ class BookLoader:
                             logging.info(f"Smart Rewind applied: {rewind_ms}ms back.")
                 except Exception as e:
                     logging.warning(f"Could not apply smart rewind: {e}")
+
+            root_path = details.get("root_path") if details else None
+            first_stream_url = frame.book_files_data[0][1] if frame.book_files_data else None
+            frame.book_chapters = self._load_remote_chapters(root_path, first_stream_url)
+            file_index, start_pos_ms = self._apply_remote_progress_if_newer(
+                root_path=root_path,
+                local_state=state,
+                local_file_index=file_index,
+                local_start_pos_ms=start_pos_ms,
+                file_durations_ms=frame.book_file_durations,
+                first_stream_url=first_stream_url,
+            )
+
+            if frame.initial_seek_ms_override is not None:
+                override_total_ms = max(0, int(frame.initial_seek_ms_override or 0))
+                file_index, start_pos_ms = split_total_position_ms(frame.book_file_durations, override_total_ms)
+                frame.initial_seek_ms_override = None
+                logging.info(f"Applying explicit start position override: {override_total_ms}ms")
 
             if not (0 <= file_index < len(frame.book_files_data)):
                 logging.warning(f"Saved file index {file_index} out of bounds. Resetting to 0.")
@@ -164,6 +289,8 @@ class BookLoader:
         frame.save_state_counter = 0
         frame.current_eq_settings = "0,0,0,0,0,0,0,0,0,0"
         frame.is_eq_enabled = False
+        frame.book_chapters = []
+        frame.initial_seek_ms_override = None
 
     def load_new_book(self, new_book_id: int, new_book_title: str):
         frame = self.frame

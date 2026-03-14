@@ -10,6 +10,7 @@ from typing import List, Tuple, Callable, Optional
 import updater
 from database import db_manager
 from i18n import _
+from media_types import infer_book_type_from_file_rows
 from nvda_controller import set_app_focus_status
 from dialogs.about_dialog import APP_VERSION
 
@@ -21,9 +22,11 @@ from .library import (
     task_handlers,
     history_manager,
     hotkey_manager,
-    context_actions
+    context_actions,
+    chapter_selector
 )
 from . import player_frame
+from . import ebook_reader_frame
 
 # Custom Events
 MissingBooksResultEvent, EVT_MISSING_BOOKS_RESULT = wx.lib.newevent.NewEvent()
@@ -33,6 +36,7 @@ UpdateScanResultEvent, EVT_UPDATE_SCAN_COMPLETE = wx.lib.newevent.NewEvent()
 # Custom IDs
 ID_ADD_BOOK = wx.NewIdRef()
 ID_ADD_SINGLE_FILE = wx.NewIdRef()
+ID_IMPORT_AUDIOBOOKSHELF = wx.NewIdRef()
 ID_SETTINGS = wx.NewIdRef()
 ID_CREATE_SHELF = wx.NewIdRef()
 ID_REFRESH_LIBRARY = wx.NewIdRef()
@@ -45,10 +49,12 @@ ID_OPEN_LOGS = wx.NewIdRef()
 ID_USER_GUIDE = wx.NewIdRef()
 
 ID_TREE_PLAY = wx.NewIdRef()
+ID_TREE_PLAY_FROM_CHAPTER = wx.NewIdRef()
 ID_TREE_RENAME_BOOK = wx.NewIdRef()
 ID_TREE_PROPERTIES = wx.NewIdRef()
 ID_TREE_OPEN_LOCATION = wx.NewIdRef()
 ID_TREE_UPDATE_LOCATION = wx.NewIdRef()
+ID_TREE_DOWNLOAD_FROM_SERVER = wx.NewIdRef()
 ID_TREE_EXPORT_DATA = wx.NewIdRef()
 ID_TREE_DELETE_BOOK = wx.NewIdRef()
 ID_TREE_DELETE_COMPUTER = wx.NewIdRef()
@@ -118,6 +124,10 @@ class LibraryFrame(wx.Frame):
         self.last_search_focus_index = -1
         self.last_library_focus_index = -1
         self.last_focused_control = None
+        self.pending_initial_seek_ms: Optional[int] = None
+        self.pending_initial_seek_book_id: Optional[int] = None
+        self.player = None
+        self.reader = None
 
         self.nav_stack_back: List[Tuple[str | int, int]] = []
         self.nav_stack_forward: List[Tuple[str | int, int]] = []
@@ -215,6 +225,7 @@ class LibraryFrame(wx.Frame):
         # File Menu
         self.Bind(wx.EVT_MENU, lambda event: task_handlers.on_add_book(self, event), id=ID_ADD_BOOK)
         self.Bind(wx.EVT_MENU, lambda event: task_handlers.on_add_single_file(self, event), id=ID_ADD_SINGLE_FILE)
+        self.Bind(wx.EVT_MENU, lambda event: menu_handlers.on_import_audiobookshelf(self, event), id=ID_IMPORT_AUDIOBOOKSHELF)
         self.Bind(wx.EVT_MENU, lambda event: menu_handlers.on_create_shelf(self, event), id=ID_CREATE_SHELF)
         self.Bind(wx.EVT_MENU, lambda event: menu_handlers.on_refresh_library(self, event), id=ID_REFRESH_LIBRARY)
         self.Bind(wx.EVT_MENU, lambda event: menu_handlers.on_quit(self, event), id=wx.ID_EXIT)
@@ -294,10 +305,12 @@ class LibraryFrame(wx.Frame):
     def _bind_context_actions(self):
         """Helper to bind context menu actions."""
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_play(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_PLAY)
+        self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_play_from_chapter(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_PLAY_FROM_CHAPTER)
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_rename_book(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_RENAME_BOOK)
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_properties(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_PROPERTIES)
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_open_location(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_OPEN_LOCATION)
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_update_location(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_UPDATE_LOCATION)
+        self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_download_from_server(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_DOWNLOAD_FROM_SERVER)
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_export_data(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_EXPORT_DATA)
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_delete_book(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_DELETE_BOOK)
         self.Bind(wx.EVT_MENU, lambda event: context_actions.on_context_delete_computer(self, event, source=context_handlers.get_source_from_focus(self)), id=ID_TREE_DELETE_COMPUTER)
@@ -331,6 +344,8 @@ class LibraryFrame(wx.Frame):
         file_menu.Append(add_item)
         add_single_item = wx.MenuItem(file_menu, ID_ADD_SINGLE_FILE, _("Add Single &File...\tCtrl+Shift+O"))
         file_menu.Append(add_single_item)
+        import_abs_item = wx.MenuItem(file_menu, ID_IMPORT_AUDIOBOOKSHELF, _("Import from &Audiobookshelf Server..."))
+        file_menu.Append(import_abs_item)
         create_shelf_item = wx.MenuItem(file_menu, ID_CREATE_SHELF, _("Create &New Shelf...\tCtrl+N"))
         file_menu.Append(create_shelf_item)
         refresh_item = wx.MenuItem(file_menu, ID_REFRESH_LIBRARY, _("&Refresh Library\tF5"))
@@ -386,7 +401,13 @@ class LibraryFrame(wx.Frame):
 
         self.SetMenuBar(menu_bar)
 
-    def start_playback(self, book_id: int, library_playlist: List[Tuple[int, str]], current_playlist_index: int):
+    def start_playback(
+            self,
+            book_id: int,
+            library_playlist: List[Tuple[int, str]],
+            current_playlist_index: int,
+            initial_seek_ms: Optional[int] = None
+    ):
         """
         Initiates playback for a specific book.
         Handles opening the player window and passing the context.
@@ -396,25 +417,82 @@ class LibraryFrame(wx.Frame):
             wx.MessageBox(_("Error starting playback."), _("Error"), wx.OK | wx.ICON_ERROR, parent=self)
             return
 
+        effective_initial_seek_ms = initial_seek_ms
+        if (
+                effective_initial_seek_ms is None
+                and self.pending_initial_seek_book_id == book_id
+                and self.pending_initial_seek_ms is not None
+        ):
+            effective_initial_seek_ms = self.pending_initial_seek_ms
+        self.pending_initial_seek_book_id = None
+        self.pending_initial_seek_ms = None
+
+        book_details = db_manager.book_repo.get_book_details(book_id) or {}
+        book_files = db_manager.get_book_files(book_id)
+        book_type = str(book_details.get("book_type") or "").strip().lower()
+        if book_type not in {"audio", "ebook"}:
+            book_type = infer_book_type_from_file_rows(book_files)
+
+        def _close_existing_windows():
+            for attr in ("player", "reader"):
+                existing = getattr(self, attr, None)
+                if not existing:
+                    continue
+                try:
+                    if not existing.IsBeingDeleted():
+                        existing.Destroy()
+                except Exception as e:
+                    logging.warning(f"Ignoring error destroying previous {attr}: {e}")
+                setattr(self, attr, None)
+
+        if book_type == "ebook":
+            logging.info(f"Opening ebook reader for book_id: {book_id}")
+            self.last_focused_control = wx.Window.FindFocus()
+            if not self.last_focused_control:
+                self.last_focused_control = self.library_list
+
+            try:
+                _close_existing_windows()
+                self.reader = ebook_reader_frame.EbookReaderFrame(
+                    parent=self,
+                    book_id=book_id,
+                    library_playlist=library_playlist,
+                    current_playlist_index=current_playlist_index
+                )
+                self.reader.Show()
+                self.Hide()
+            except Exception as e:
+                logging.critical(f"Could not create EbookReaderFrame: {e}", exc_info=True)
+                wx.MessageBox(_("Error opening ebook reader."), _("Reader Error"), wx.OK | wx.ICON_ERROR, parent=self)
+                self.Show()
+            return
+
+        state = db_manager.get_playback_state(book_id)
+        is_first_play = not bool(state)
+        if is_first_play and effective_initial_seek_ms is None:
+            picked = chapter_selector.prompt_abs_chapter_start(
+                parent=self,
+                book_id=book_id,
+                current_total_position_ms=0,
+                announce_if_unavailable=False
+            )
+            if picked is not None:
+                effective_initial_seek_ms = picked
+
         logging.info(f"Starting playback for book_id: {book_id}")
         self.last_focused_control = wx.Window.FindFocus()
         if not self.last_focused_control:
             self.last_focused_control = self.library_list
 
         try:
-            if hasattr(self, 'player') and self.player:
-                try:
-                    if not self.player.IsBeingDeleted():
-                        self.player.Destroy()
-                except Exception as e:
-                    logging.warning(f"Ignoring error destroying previous player: {e}")
-                self.player = None
+            _close_existing_windows()
 
             self.player = player_frame.PlayerFrame(
                 parent=self,
                 book_id=book_id,
                 library_playlist=library_playlist,
-                current_playlist_index=current_playlist_index
+                current_playlist_index=current_playlist_index,
+                initial_seek_ms=effective_initial_seek_ms
             )
             self.player.Show()
             self.Hide()

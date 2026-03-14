@@ -8,6 +8,7 @@ import sys
 import logging
 import concurrent.futures
 from typing import List, Tuple
+from media_types import SUPPORTED_MEDIA_EXTENSIONS, is_audio_media
 
 try:
     from tinytag import TinyTag
@@ -15,11 +16,7 @@ except ImportError:
     print("CRITICAL: 'tinytag' library not found. Please install it: pip install tinytag")
     sys.exit(1)
 
-SUPPORTED_EXTENSIONS = {
-    '.mp3', '.m4a', '.m4b', '.aac', '.flac', '.ogg', '.oga', '.wav',
-    '.wma', '.opus', '.aiff',
-    '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv',
-}
+SUPPORTED_EXTENSIONS = SUPPORTED_MEDIA_EXTENSIONS
 
 
 def _fix_long_path(path: str) -> str:
@@ -51,6 +48,8 @@ def natural_sort_key(s: str) -> List:
 def _get_duration_with_tinytag(file_path: str) -> int:
     """Reads the duration of a media file in milliseconds using TinyTag."""
     try:
+        if not is_audio_media(file_path):
+            return 0
         if os.path.getsize(file_path) == 0:
             return 0
         tag = TinyTag.get(file_path, image=False)

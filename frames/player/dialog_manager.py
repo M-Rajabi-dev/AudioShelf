@@ -13,6 +13,7 @@ from dialogs import (
     bookmark_list_dialog,
     goto_dialog,
     filelist_dialog,
+    chapter_list_dialog,
     sleep_timer_dialog,
     goto_file_dialog
 )
@@ -157,6 +158,10 @@ class DialogManager:
 
     def on_show_files(self):
         """Opens the 'File List' dialog."""
+        if getattr(self.frame, "book_chapters", []) or []:
+            self.on_show_chapters()
+            return
+
         was_playing = self._dialog_entry()
         dialog_file_list = [(fid, fpath) for fid, fpath, fidx, duration in self.frame.book_files_data]
         dlg = filelist_dialog.FileListDialog(self.frame, dialog_file_list, self.frame.current_file_index)
@@ -183,6 +188,41 @@ class DialogManager:
                     logging.error(f"Error in on_show_files: {e}", exc_info=True)
                     speak(_("Error jumping to file."), LEVEL_CRITICAL)
         
+        dlg.Destroy()
+        self._dialog_exit(was_playing)
+
+    def on_show_chapters(self):
+        """Opens the chapter list dialog for the current book."""
+        was_playing = self._dialog_entry()
+        chapters = getattr(self.frame, "book_chapters", []) or []
+        if not chapters:
+            speak(_("No chapters available for this book."), LEVEL_MINIMAL)
+            self._dialog_exit(was_playing)
+            return
+
+        current_time = self.frame.engine.get_time() if self.frame.engine else 0
+        dlg = chapter_list_dialog.ChapterListDialog(self.frame, chapters, current_time)
+        result = dlg.ShowModal()
+
+        if result == wx.ID_OK:
+            selected_index = dlg.get_selected_index()
+            if 0 <= selected_index < len(chapters):
+                try:
+                    chapter = chapters[selected_index]
+                    target_ms = max(0, int(chapter.get("start_ms") or 0))
+                    chapter_title = str(chapter.get("title") or "").strip() or _("Chapter {0}").format(selected_index + 1)
+                    self.frame.engine.set_time(target_ms)
+                    speak(_("Jumping to chapter: {0}").format(chapter_title), LEVEL_MINIMAL)
+
+                    resume_setting = db_manager.get_setting('resume_on_jump')
+                    should_resume = (resume_setting == 'True' or resume_setting is None)
+
+                    if not was_playing and should_resume:
+                        wx.CallLater(100, playback_logic.toggle_play_pause, self.frame)
+                except Exception as e:
+                    logging.error(f"Error in chapter jump: {e}", exc_info=True)
+                    speak(_("Error jumping to chapter."), LEVEL_CRITICAL)
+
         dlg.Destroy()
         self._dialog_exit(was_playing)
 

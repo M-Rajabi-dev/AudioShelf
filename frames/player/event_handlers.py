@@ -5,10 +5,14 @@
 import wx
 import logging
 import os
+import threading
 from typing import Optional, TYPE_CHECKING
 
 from database import db_manager
 from nvda_controller import set_app_focus_status, speak, LEVEL_MINIMAL
+from audiobookshelf_client import AudiobookshelfClient, AudiobookshelfError
+from playback.abs_link_resolver import resolve_audiobookshelf_target
+from playback.abs_sync_utils import compute_total_position_ms
 
 if TYPE_CHECKING:
     from ..player_frame import PlayerFrame
@@ -151,8 +155,70 @@ def save_playback_state(frame: 'PlayerFrame', final_time_ms: Optional[int] = Non
             eq_settings=frame.current_eq_settings,
             is_eq_enabled=frame.is_eq_enabled,
         )
+        _sync_audiobookshelf_progress_async(frame, current_time)
     except Exception as e:
         logging.error(f"Error saving state: {e}")
+
+
+def _resolve_audiobookshelf_target(frame: 'PlayerFrame'):
+    root_path = db_manager.book_repo.get_book_path(frame.book_id)
+    preferred_stream = frame.current_file_path
+    if not preferred_stream and frame.book_files_data:
+        preferred_stream = frame.book_files_data[0][1]
+    return resolve_audiobookshelf_target(
+        book_id=frame.book_id,
+        root_path=root_path,
+        preferred_stream_url=preferred_stream,
+        allow_lookup=False,
+        timeout_seconds=8,
+    )
+
+
+def _sync_audiobookshelf_progress_async(frame: 'PlayerFrame', current_file_position_ms: int):
+    base_url, item_id, api_key = _resolve_audiobookshelf_target(frame)
+    if not base_url or not item_id or not api_key:
+        return
+
+    total_position_ms = compute_total_position_ms(
+        frame.book_file_durations,
+        frame.current_file_index,
+        current_file_position_ms,
+    )
+    duration_values = [max(0, int(d or 0)) for d in frame.book_file_durations]
+    total_duration_ms = sum(duration_values)
+    is_finished = bool(total_duration_ms > 0 and total_position_ms >= max(0, total_duration_ms - 1500))
+
+    thread = threading.Thread(
+        target=_sync_audiobookshelf_progress_worker,
+        args=(base_url, api_key, item_id, total_position_ms, total_duration_ms, is_finished),
+        daemon=True
+    )
+    thread.start()
+
+
+def _sync_audiobookshelf_progress_worker(
+        base_url: str,
+        api_key: str,
+        item_id: str,
+        total_position_ms: int,
+        total_duration_ms: int,
+        is_finished: bool
+):
+    try:
+        client = AudiobookshelfClient(base_url, api_key, timeout_seconds=8)
+        client.update_media_progress(
+            item_id=item_id,
+            current_time_seconds=total_position_ms / 1000.0,
+            duration_seconds=total_duration_ms / 1000.0,
+            is_finished=is_finished,
+        )
+        logging.debug(
+            f"Audiobookshelf progress synced for item {item_id}: pos={total_position_ms}ms dur={total_duration_ms}ms"
+        )
+    except AudiobookshelfError as e:
+        logging.warning(f"Audiobookshelf progress sync failed for item {item_id}: {e}")
+    except Exception as e:
+        logging.warning(f"Audiobookshelf progress sync failed for item {item_id}: {e}")
 
 
 def on_escape(frame: 'PlayerFrame', event=None):

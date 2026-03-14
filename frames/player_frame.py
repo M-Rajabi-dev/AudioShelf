@@ -46,7 +46,8 @@ class PlayerFrame(wx.Frame):
                  parent: wx.Frame,
                  book_id: int,
                  library_playlist: List[Tuple[int, str]],
-                 current_playlist_index: int):
+                 current_playlist_index: int,
+                 initial_seek_ms: Optional[int] = None):
         """
         Initializes the PlayerFrame.
         """
@@ -57,6 +58,7 @@ class PlayerFrame(wx.Frame):
         self.book_id = book_id
         self.library_playlist = library_playlist
         self.current_playlist_index = current_playlist_index
+        self.initial_seek_ms_override: Optional[int] = initial_seek_ms
 
         try:
             _id, title = self.library_playlist[self.current_playlist_index]
@@ -69,6 +71,7 @@ class PlayerFrame(wx.Frame):
         self.book_files_data: List[Tuple[int, str, int, int]] = []
         self.book_file_durations: List[int] = []
         self.total_book_duration_ms: int = 0
+        self.book_chapters: List[dict] = []
         
         self.current_file_index: int = 0
         self.current_file_id: Optional[int] = None

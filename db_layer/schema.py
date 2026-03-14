@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS books (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     root_path TEXT NOT NULL UNIQUE,
+    book_type TEXT DEFAULT 'audio',
     shelf_id INTEGER NOT NULL,
     author TEXT,
     narrator TEXT,
@@ -50,6 +51,16 @@ CREATE TABLE IF NOT EXISTS playback_state (
     last_eq_settings TEXT DEFAULT "0,0,0,0,0,0,0,0,0,0",
     is_eq_enabled BOOLEAN DEFAULT 0,
     last_played_at TIMESTAMP,
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+);
+"""
+
+CREATE_READING_STATE_TABLE = """
+CREATE TABLE IF NOT EXISTS reading_state (
+    book_id INTEGER PRIMARY KEY,
+    char_offset INTEGER DEFAULT 0,
+    total_chars INTEGER DEFAULT 0,
+    last_read_at TIMESTAMP,
     FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 """
@@ -114,6 +125,7 @@ ALL_TABLES = [
     CREATE_BOOKS_TABLE,
     CREATE_PLAYABLE_FILES_TABLE,
     CREATE_PLAYBACK_STATE_TABLE,
+    CREATE_READING_STATE_TABLE,
     CREATE_BOOKMARKS_TABLE,
     CREATE_SETTINGS_TABLE,
     CREATE_UI_STATE_TABLE,

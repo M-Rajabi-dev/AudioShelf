@@ -5,6 +5,22 @@
 import os
 import logging
 from typing import List, Tuple, Optional
+from urllib.parse import urlparse
+
+
+def is_remote_source(book_path: Optional[str]) -> bool:
+    """
+    Returns True when the book source points to a non-local path (URL/custom scheme).
+    """
+    if not book_path:
+        return False
+
+    parsed = urlparse(book_path)
+    if parsed.scheme in {"http", "https", "abs", "audiobookshelf"}:
+        return True
+
+    lowered = book_path.lower()
+    return lowered.startswith("abs:") or lowered.startswith("audiobookshelf:")
 
 
 def get_book_size_on_disk(book_path: Optional[str]) -> Optional[int]:
@@ -17,7 +33,7 @@ def get_book_size_on_disk(book_path: Optional[str]) -> Optional[int]:
     Returns:
         The total size in bytes, or None if the path is invalid or an error occurs.
     """
-    if not book_path or not os.path.isdir(book_path):
+    if not book_path or is_remote_source(book_path) or not os.path.isdir(book_path):
         return None
 
     total_size = 0
@@ -50,9 +66,12 @@ def find_missing_books(all_books: List[Tuple[int, str, str]]) -> List[Tuple[int,
     missing_books = []
     try:
         for book_id, title, root_path in all_books:
+            if is_remote_source(root_path):
+                continue
             if not os.path.isdir(root_path):
                 missing_books.append((book_id, title))
         return missing_books
     except Exception as e:
         logging.error(f"Error finding missing books: {e}", exc_info=True)
         return []
+

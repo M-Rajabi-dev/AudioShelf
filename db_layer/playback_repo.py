@@ -85,6 +85,64 @@ class PlaybackRepository:
         except sqlite3.Error as e:
             logging.error(f"Error saving playback state: {e}", exc_info=True)
 
+    def get_reading_state(self, book_id: int) -> Optional[Dict[str, Any]]:
+        if self.conn is None:
+            return None
+
+        cur = None
+        try:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT char_offset, total_chars, last_read_at
+                FROM reading_state
+                WHERE book_id = ?
+                """,
+                (book_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                return {
+                    "char_offset": int(row[0] or 0),
+                    "total_chars": int(row[1] or 0),
+                    "last_read_at": row[2]
+                }
+            return None
+        except sqlite3.Error as e:
+            logging.error(f"Error getting reading state: {e}", exc_info=True)
+            return None
+        finally:
+            if cur:
+                cur.close()
+
+    def save_reading_state(self, book_id: int, char_offset: int, total_chars: int):
+        if self.conn is None:
+            return
+
+        char_offset = max(0, int(char_offset or 0))
+        total_chars = max(0, int(total_chars or 0))
+
+        try:
+            now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+            with self.conn:
+                self.conn.execute(
+                    """
+                    INSERT INTO reading_state (book_id, char_offset, total_chars, last_read_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(book_id) DO UPDATE SET
+                        char_offset=excluded.char_offset,
+                        total_chars=excluded.total_chars,
+                        last_read_at=excluded.last_read_at
+                    """,
+                    (book_id, char_offset, total_chars, now)
+                )
+                self.conn.execute(
+                    "UPDATE books SET last_played_timestamp = ? WHERE id = ?",
+                    (now, book_id)
+                )
+        except sqlite3.Error as e:
+            logging.error(f"Error saving reading state: {e}", exc_info=True)
+
     def add_bookmark(self, book_id: int, file_index: int, position_ms: int, title: str, note: str) -> Optional[int]:
         if self.conn is None:
             return None

@@ -93,6 +93,8 @@ class ShortcutsDialog(wx.Dialog):
         self._add_item(_("Next Book"), "Ctrl + PageDown")
         self._add_item(_("Previous Bookmark"), "Shift + PageUp")
         self._add_item(_("Next Bookmark"), "Shift + PageDown")
+        self._add_item(_("Previous Chapter"), "Alt + PageUp")
+        self._add_item(_("Next Chapter"), "Alt + PageDown")
         self._add_item(_("Close Player / Back to Library"), "Esc / Alt + F4")
 
         self._add_header(_("Player: Seeking"))
@@ -105,7 +107,8 @@ class ShortcutsDialog(wx.Dialog):
         self._add_item(_("Go to 50% of File"), "Ctrl + Backspace")
         self._add_item(_("Go to 30s before End"), "Shift + Backspace")
         self._add_item(_("Go To Time..."), "G")
-        self._add_item(_("Show File List"), "F")
+        self._add_item(_("Show File/Chapter List"), "F")
+        self._add_item(_("Show Chapter List"), "Alt + C")
         self._add_item(_("Go To File Number..."), "Shift + F")
 
         self._add_header(_("Player: Audio"))

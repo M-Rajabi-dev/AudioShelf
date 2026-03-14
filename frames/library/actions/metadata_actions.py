@@ -51,6 +51,7 @@ def on_context_export_data(frame, event, source='library'):
             output_path = os.path.join(root_path, METADATA_FILENAME_DIR)
 
         playback_state = db_manager.playback_repo.get_playback_state(book_id)
+        reading_state = db_manager.get_reading_state(book_id)
         bookmarks = db_manager.playback_repo.get_bookmarks_for_book(book_id)
         files_db = db_manager.book_repo.get_book_files(book_id)
 
@@ -87,6 +88,7 @@ def on_context_export_data(frame, event, source='library'):
             "version": METADATA_VERSION,
             "db_id": book_id,
             "title": details.get('title'),
+            "book_type": details.get('book_type') or "audio",
             "author": details.get('author'),
             "narrator": details.get('narrator'),
             "genre": details.get('genre'),
@@ -94,6 +96,7 @@ def on_context_export_data(frame, event, source='library'):
             "is_finished": bool(details.get('is_finished')),
             "is_pinned": bool(details.get('is_pinned')),
             "playback_state": playback_state if playback_state else {},
+            "reading_state": reading_state if reading_state else {},
             "bookmarks": bookmarks_export,
             "files": files_export
         }

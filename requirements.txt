@@ -6,6 +6,8 @@ python-mpv==1.0.8
 
 # --- Metadata ---
 tinytag==2.1.2
+pypdf==6.8.0
+mobi==0.4.1
 
 # --- Accessibility ---
 accessible_output2==0.17

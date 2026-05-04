@@ -98,8 +98,7 @@ def bind_hotkeys(frame):
     frame.Bind(wx.EVT_MENU, lambda event: on_jump_to_finished(frame, event), id=ID_ACCEL_JUMP_FINISHED)
 
     for i, hk_id in enumerate(ID_ACCEL_SHELF_JUMPS):
-        target_shelf_index = i + 1
-        frame.Bind(wx.EVT_MENU, lambda event, idx=target_shelf_index: list_manager.jump_to_shelf_by_index(frame, idx), id=hk_id)
+        frame.Bind(wx.EVT_MENU, lambda event, idx=i: on_jump_to_custom_shelf(frame, idx), id=hk_id)
 
     for i, hk_id in enumerate(ID_ACCEL_PLAY_PINNED_IDS):
         frame.Bind(wx.EVT_MENU, lambda event, idx=i: on_play_pinned_book(frame, idx), id=hk_id)
@@ -209,8 +208,49 @@ def on_play_pinned_book(frame, index: int):
 
 
 def on_jump_to_default_shelf(frame, event):
-    list_manager.jump_to_shelf_by_index(frame, 0)
+    if frame.search_list.IsShown():
+        search_handlers.on_search_cancel(frame, None)
 
+    if frame.current_view_level == 1:
+        speak(_("Already in Default Shelf"), LEVEL_MINIMAL)
+        return
+
+    if frame.current_view_level == 'root':
+        frame.nav_stack_back.append(('root', frame.last_library_focus_index))
+        frame.nav_stack_forward.clear()
+
+    frame.current_view_level = 1
+    frame.current_filter = ""
+    frame.search_ctrl.SetValue("")
+    list_manager.populate_library_list(frame, index_to_select=0)
+    frame.library_list.SetFocus()
+    speak(_("Default Shelf"), LEVEL_MINIMAL)
+
+def on_jump_to_custom_shelf(frame, custom_index: int):
+    if frame.search_list.IsShown():
+        search_handlers.on_search_cancel(frame, None)
+
+    list_index = custom_index + 1
+    if list_index < len(frame.shelves_data):
+        shelf_id = frame.shelves_data[list_index][0]
+        shelf_name = frame.shelves_data[list_index][1]
+
+        if frame.current_view_level == shelf_id:
+            speak(_("Already in {0}").format(_(shelf_name)), LEVEL_MINIMAL)
+            return
+
+        if frame.current_view_level == 'root':
+            frame.nav_stack_back.append(('root', frame.last_library_focus_index))
+            frame.nav_stack_forward.clear()
+
+        frame.current_view_level = shelf_id
+        frame.current_filter = ""
+        frame.search_ctrl.SetValue("")
+        list_manager.populate_library_list(frame, index_to_select=0)
+        frame.library_list.SetFocus()
+        speak(_(shelf_name), LEVEL_MINIMAL)
+    else:
+        speak(_("Custom shelf {0} not found.").format(custom_index + 1), LEVEL_MINIMAL)
 
 def on_jump_to_pinned(frame, event):
     if frame.search_list.IsShown():

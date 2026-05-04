@@ -145,7 +145,7 @@ def _build_book_menu(frame, book_id: int, source: str, selected_count: int):
     props_item.Enable(is_single_selection)
     menu.Append(props_item)
 
-    if source == 'library' and frame.current_view_level == 'root' and not is_pinned:
+    if source == 'library':
         move_menu = wx.Menu()
         frame.shelf_menu_id_map.clear()
         

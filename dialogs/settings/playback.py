@@ -42,7 +42,8 @@ SMART_THRESHOLD_OPTIONS = [
 
 SMART_REWIND_OPTIONS = [(0, _("Disabled"))]
 SMART_REWIND_OPTIONS += [(s * MS_PER_SEC, _("{0} seconds").format(s)) for s in [5, 10, 15, 20, 30]]
-SMART_REWIND_OPTIONS += [(m * MS_PER_MIN, _("{0} minutes").format(m)) for m in range(1, 11)]
+SMART_REWIND_OPTIONS += [(1 * MS_PER_MIN, _("{0} minute").format(1))]
+SMART_REWIND_OPTIONS += [(m * MS_PER_MIN, _("{0} minutes").format(m)) for m in range(2, 11)]
 SMART_REWIND_OPTIONS += [(15 * MS_PER_MIN, _("{0} minutes").format(15))]
 
 class TabPanel(wx.Panel):

@@ -148,8 +148,11 @@ def play_next_file(frame: 'PlayerFrame', manual: bool = False):
 
             if action == 'loop':
                 speak(_("End of book. Looping."), LEVEL_MINIMAL)
-                if not was_playing and _should_resume_on_jump():
-                    wx.CallLater(100, toggle_play_pause, frame)
+                if was_playing or _should_resume_on_jump():
+                    frame.engine.play()
+                    frame.is_playing = True
+                    if not frame.ui_timer.IsRunning():
+                        frame.ui_timer.Start(1000)
             elif action == 'close':
                 speak(_("End of book. Closing."), LEVEL_MINIMAL)
                 wx.CallLater(100, event_handlers.on_escape, frame)

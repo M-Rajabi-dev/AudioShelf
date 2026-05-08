@@ -240,9 +240,12 @@ class MpvEngine(BasePlaybackEngine):
         return False
 
     def playlist_jump(self, index: int, start_time_ms: int = 0) -> bool:
-        """Jumps to a specific playlist index."""
         if self.player:
             try:
+                if self.player.playlist_pos == index:
+                    self.player.command('seek', start_time_ms / 1000.0, 'absolute')
+                    return True
+
                 self._is_initial_load = True
                 self._pending_start_time_ms = start_time_ms
                 self.player.playlist_pos = index

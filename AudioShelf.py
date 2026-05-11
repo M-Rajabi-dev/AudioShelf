@@ -4,6 +4,7 @@
 
 import sys
 import os
+import shutil
 import logging
 import socket
 import threading
@@ -84,6 +85,40 @@ try:
 except Exception as e:
     print(f"FATAL: Could not initialize logger. Error: {e}", file=sys.stderr)
 
+
+def handle_silent_actions():
+    if len(sys.argv) >= 3:
+        action = sys.argv[1]
+        target_path = sys.argv[2]
+        
+        if action in ["--copy-to-autoscan", "--move-to-autoscan"]:
+
+            from database import db_manager, _get_default_documents_folder
+            auto_scan_folder = db_manager.get_setting('auto_scan_folder')
+            
+            if not auto_scan_folder or not os.path.exists(auto_scan_folder):
+                auto_scan_folder = os.path.join(_get_default_documents_folder(), "AudioShelf")
+                os.makedirs(auto_scan_folder, exist_ok=True)
+            
+            target_name = os.path.basename(target_path)
+            destination = os.path.join(auto_scan_folder, target_name)
+            
+            try:
+                if action == "--copy-to-autoscan":
+                    if os.path.isdir(target_path):
+                        shutil.copytree(target_path, destination, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(target_path, destination)
+                
+                elif action == "--move-to-autoscan":
+                    shutil.move(target_path, destination)
+                    
+            except Exception as e:
+                logging.error(f"Error executing context menu action '{action}' on '{target_path}': {e}")
+                
+            sys.exit(0)
+
+handle_silent_actions()
 
 def handle_uncaught_exception(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):

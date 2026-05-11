@@ -18,7 +18,7 @@ SETTING_AUTO_SCAN_STARTUP = 'auto_scan_on_startup'
 class TabPanel(wx.Panel):
     """
     The "General" settings tab.
-    Handles application language selection, auto-scan folder, and startup update checks.
+    Handles application language selection, AudioShelf folder, and startup update checks.
     """
     def __init__(self, parent):
         super(TabPanel, self).__init__(parent)
@@ -53,8 +53,8 @@ class TabPanel(wx.Panel):
 
         main_sizer.Add(lang_box_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
-        # Auto-Scan Folder Settings
-        folder_box = wx.StaticBox(self, label=_("Auto-Scan Folder"))
+        # AudioShelf folder Settings
+        folder_box = wx.StaticBox(self, label=_("AudioShelf Folder"))
         folder_box_sizer = wx.StaticBoxSizer(folder_box, wx.VERTICAL)
 
         self.auto_scan_startup_checkbox = wx.CheckBox(self, label=_("Automatically scan the folder for new books on startup"))
@@ -65,7 +65,7 @@ class TabPanel(wx.Panel):
 
         folder_hz_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
-        self.folder_text = wx.TextCtrl(self, style=wx.BORDER_SUNKEN, name=_("Auto-Scan Folder Path"))
+        self.folder_text = wx.TextCtrl(self, style=wx.BORDER_SUNKEN, name=_("AudioShelf folder Path"))
         self.folder_text.SetMinSize((300, -1))
         folder_hz_sizer.Add(self.folder_text, 1, wx.EXPAND | wx.RIGHT, 8)
 
@@ -84,7 +84,7 @@ class TabPanel(wx.Panel):
             windows_box = wx.StaticBox(self, label=_("Windows Integration"))
             windows_box_sizer = wx.StaticBoxSizer(windows_box, wx.VERTICAL)
 
-            self.context_menu_checkbox = wx.CheckBox(self, label=_("Add 'Add to AudioShelf Library' to Windows Explorer context menu"))
+            self.context_menu_checkbox = wx.CheckBox(self, label=_("Add AudioShelf to Windows Explorer context menu"))
             windows_box_sizer.Add(self.context_menu_checkbox, 0, wx.ALL | wx.EXPAND, 8)
 
             main_sizer.Add(windows_box_sizer, 0, wx.EXPAND | wx.ALL, 10)
@@ -192,34 +192,51 @@ class TabPanel(wx.Panel):
     def _install_context_menu(self):
         try:
             exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(sys.argv[0])
-            menu_text = _("Add to AudioShelf Library")
             
-            key_dir = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\Directory\shell\AudioShelf")
-            winreg.SetValueEx(key_dir, "", 0, winreg.REG_SZ, menu_text)
-            winreg.SetValueEx(key_dir, "Icon", 0, winreg.REG_SZ, f'"{exe_path}"')
-            cmd_key_dir = winreg.CreateKey(key_dir, "command")
-            winreg.SetValueEx(cmd_key_dir, "", 0, winreg.REG_SZ, f'"{exe_path}" "%1"')
-            
-            key_all = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\*\shell\AudioShelf")
-            winreg.SetValueEx(key_all, "", 0, winreg.REG_SZ, menu_text)
-            winreg.SetValueEx(key_all, "Icon", 0, winreg.REG_SZ, f'"{exe_path}"')
-            cmd_key_all = winreg.CreateKey(key_all, "command")
-            winreg.SetValueEx(cmd_key_all, "", 0, winreg.REG_SZ, f'"{exe_path}" "%1"')
+            main_menu_name = "AudioShelf"
+            add_text = _("Add to Library")
+            copy_text = _("Copy to AudioShelf folder")
+            move_text = _("Move to AudioShelf folder")
+
+            for base_key in [r"Software\Classes\Directory\shell", r"Software\Classes\*\shell"]:
+                key_main = winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf"{base_key}\AudioShelf")
+                winreg.SetValueEx(key_main, "MUIVerb", 0, winreg.REG_SZ, main_menu_name)
+                winreg.SetValueEx(key_main, "Icon", 0, winreg.REG_SZ, f'"{exe_path}"')
+                winreg.SetValueEx(key_main, "SubCommands", 0, winreg.REG_SZ, "")
+                
+                shell_key = winreg.CreateKey(key_main, "shell")
+                
+                cmd_add = winreg.CreateKey(shell_key, "cmd1")
+                winreg.SetValueEx(cmd_add, "MUIVerb", 0, winreg.REG_SZ, add_text)
+                winreg.SetValueEx(winreg.CreateKey(cmd_add, "command"), "", 0, winreg.REG_SZ, f'"{exe_path}" "%1"')
+                
+
+                cmd_copy = winreg.CreateKey(shell_key, "cmd2")
+                winreg.SetValueEx(cmd_copy, "MUIVerb", 0, winreg.REG_SZ, copy_text)
+                winreg.SetValueEx(winreg.CreateKey(cmd_copy, "command"), "", 0, winreg.REG_SZ, f'"{exe_path}" --copy-to-autoscan "%1"')
+                
+                cmd_move = winreg.CreateKey(shell_key, "cmd3")
+                winreg.SetValueEx(cmd_move, "MUIVerb", 0, winreg.REG_SZ, move_text)
+                winreg.SetValueEx(winreg.CreateKey(cmd_move, "command"), "", 0, winreg.REG_SZ, f'"{exe_path}" --move-to-autoscan "%1"')
         except Exception as e:
             print(f"Error installing context menu: {e}")
 
     def _uninstall_context_menu(self):
-        try:
-            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\Directory\shell\AudioShelf\command")
-            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\Directory\shell\AudioShelf")
-        except FileNotFoundError:
-            pass
-            
-        try:
-            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\*\shell\AudioShelf\command")
-            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\*\shell\AudioShelf")
-        except FileNotFoundError:
-            pass
+        def delete_sub_key(base_path):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"{base_path}\shell\cmd1\command")
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"{base_path}\shell\cmd1")
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"{base_path}\shell\cmd2\command")
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"{base_path}\shell\cmd2")
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"{base_path}\shell\cmd3\command")
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"{base_path}\shell\cmd3")
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"{base_path}\shell")
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, base_path)
+            except FileNotFoundError:
+                pass
+                
+        delete_sub_key(r"Software\Classes\Directory\shell\AudioShelf")
+        delete_sub_key(r"Software\Classes\*\shell\AudioShelf")
 
     def get_current_language_on_load(self) -> str:
         """Returns the language code that was active when the tab was initialized."""
@@ -235,7 +252,7 @@ class TabPanel(wx.Panel):
             from database import _get_default_documents_folder
             current_path = _get_default_documents_folder()
             
-        dlg = wx.DirDialog(self, _("Select Auto-Scan Folder"), defaultPath=current_path, style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST)
+        dlg = wx.DirDialog(self, _("Select AudioShelf folder"), defaultPath=current_path, style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST)
         if dlg.ShowModal() == wx.ID_OK:
             self.folder_text.SetValue(dlg.GetPath())
         dlg.Destroy()

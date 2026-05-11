@@ -142,6 +142,7 @@ class DatabaseManager:
             'master_volume': '100',
             'last_run_version': '0.0.0',
             'auto_scan_folder': default_auto_scan_folder,
+            'auto_scan_on_startup': 'True',
         }
 
         self.default_eq_presets = {

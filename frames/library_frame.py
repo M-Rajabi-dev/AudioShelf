@@ -500,6 +500,9 @@ class LibraryFrame(wx.Frame):
         import os
         import threading
         
+        if db_manager.get_setting('auto_scan_on_startup') == 'False':
+            return
+
         auto_scan_folder = db_manager.get_setting('auto_scan_folder')
         if auto_scan_folder and os.path.exists(auto_scan_folder):
             if not self.is_busy_processing:

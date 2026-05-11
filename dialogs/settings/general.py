@@ -12,6 +12,7 @@ import winreg
 SETTING_LANGUAGE = 'language'
 SETTING_CHECK_UPDATES = 'check_updates_on_startup'
 SETTING_AUTO_SCAN_FOLDER = 'auto_scan_folder'
+SETTING_AUTO_SCAN_STARTUP = 'auto_scan_on_startup'
 
 
 class TabPanel(wx.Panel):
@@ -55,6 +56,9 @@ class TabPanel(wx.Panel):
         # Auto-Scan Folder Settings
         folder_box = wx.StaticBox(self, label=_("Auto-Scan Folder"))
         folder_box_sizer = wx.StaticBoxSizer(folder_box, wx.VERTICAL)
+
+        self.auto_scan_startup_checkbox = wx.CheckBox(self, label=_("Automatically scan the folder for new books on startup"))
+        folder_box_sizer.Add(self.auto_scan_startup_checkbox, 0, wx.ALL | wx.EXPAND, 8)
 
         folder_label = wx.StaticText(self, label=_("Select a folder to automatically scan for new books:"))
         folder_box_sizer.Add(folder_label, 0, wx.ALL, 8)
@@ -116,6 +120,9 @@ class TabPanel(wx.Panel):
         is_checked = (check_updates == 'True' or check_updates is None)
         self.update_checkbox.SetValue(is_checked)
 
+        auto_scan_startup = db_manager.get_setting(SETTING_AUTO_SCAN_STARTUP)
+        self.auto_scan_startup_checkbox.SetValue(auto_scan_startup != 'False')
+
         current_folder = db_manager.get_setting(SETTING_AUTO_SCAN_FOLDER)
         if not current_folder:
             from database import _get_default_documents_folder
@@ -139,6 +146,9 @@ class TabPanel(wx.Panel):
 
         update_val = 'True' if self.update_checkbox.GetValue() else 'False'
         db_manager.set_setting(SETTING_CHECK_UPDATES, update_val)
+
+        auto_scan_val = 'True' if self.auto_scan_startup_checkbox.GetValue() else 'False'
+        db_manager.set_setting(SETTING_AUTO_SCAN_STARTUP, auto_scan_val)
 
         db_manager.set_setting(SETTING_AUTO_SCAN_FOLDER, self.folder_text.GetValue().strip())
 

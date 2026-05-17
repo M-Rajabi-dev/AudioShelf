@@ -74,12 +74,13 @@ jobs:
           }
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             ${{ env.PORTABLE_ZIP_NAME }}
             ${{ env.SETUP_EXE_NAME }}
           body_path: CHANGELOG.md
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

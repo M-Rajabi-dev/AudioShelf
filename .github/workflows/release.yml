@@ -36,10 +36,6 @@ jobs:
           echo "VERSION=$ver" >> $env:GITHUB_ENV
           Write-Host "Detected Version: $ver"
 
-      - name: Generate Version Info for Exe
-        run: |
-          python create_version.py $env:VERSION
-
       - name: Build with PyInstaller
         run: |
           python -m PyInstaller AudioShelf.spec

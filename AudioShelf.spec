@@ -1,4 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.getcwd()))
+import create_version
+
+# Generate version_info.txt dynamically based on the VERSION file
+version_str = "1.0.0"
+if os.path.exists('VERSION'):
+    with open('VERSION', 'r', encoding='utf-8') as f:
+        version_str = f.read().strip()
+
+create_version.generate_version_file(version_str)
 
 block_cipher = None
 

@@ -150,8 +150,6 @@ try:
     import i18n
     i18n.set_language(user_lang)
     from i18n import _
-    from frames.library_frame import LibraryFrame
-    from frames.library import task_handlers
 except ImportError as e:
     logging.critical(f"Failed to import core modules: {e}", exc_info=True)
     sys.exit(1)
@@ -216,7 +214,19 @@ class AudioShelfApp(wx.App):
                 logging.warning("Could not connect to existing instance IPC. Exiting.")
                 return False
 
+        if db_manager.get_setting('language_prompt_shown') != 'True':
+            from dialogs.language_dialog import LanguageDialog
+            dlg = LanguageDialog(None)
+            dlg.ShowModal()
+            dlg.Destroy()
+            
+            import i18n
+            global _
+            _ = i18n._
+
         try:
+            from frames.library_frame import LibraryFrame
+            
             self.frame = LibraryFrame(None, title=_("AudioShelf - My Library"))
             
             if getattr(sys, 'frozen', False):
@@ -296,6 +306,7 @@ class AudioShelfApp(wx.App):
     def _process_cli_arg(self, input_path):
         if os.path.exists(input_path):
             logging.info(f"Processing file/folder argument: {input_path}")
+            from frames.library import task_handlers 
             wx.CallAfter(task_handlers.trigger_book_scan, self.frame, input_path, 1)
 
     def OnExit(self):

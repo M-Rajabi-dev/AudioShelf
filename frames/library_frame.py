@@ -127,12 +127,43 @@ class LibraryFrame(wx.Frame):
         self.UpdateScanResultEvent = UpdateScanResultEvent
         self.MissingBooksResultEvent = MissingBooksResultEvent
 
+        self.skip_donate_prompt = False
+        self.has_checked_donate_prompt = False
+
         self._init_ui()
         self._init_updater()
         self._bind_events()
         self._init_data()
         wx.CallLater(1000, self._check_first_run_after_update)
         wx.CallLater(1500, self._trigger_startup_scan)
+
+    def _check_donate_prompt(self):
+        if getattr(self, 'has_checked_donate_prompt', False):
+            return
+        self.has_checked_donate_prompt = True
+
+        count_str = db_manager.get_setting('launch_count')
+        count = int(count_str) if count_str else 0
+        count += 1
+        db_manager.set_setting('launch_count', str(count))
+
+        if getattr(self, 'skip_donate_prompt', False):
+            return
+
+        if db_manager.get_setting('suppress_donate_prompt') == 'True':
+            return
+        
+        if count > 0 and count % 15 == 0:
+            from dialogs.donate_prompt_dialog import DonatePromptDialog
+            dlg = DonatePromptDialog(self)
+            result = dlg.ShowModal()
+            dlg.Destroy()
+            
+            if result == wx.ID_YES:
+                from dialogs.donate_dialog import DonateDialog
+                d_dlg = DonateDialog(self)
+                d_dlg.ShowModal()
+                d_dlg.Destroy()
 
     def _init_ui(self):
         """Initializes the UI components and layout."""
@@ -462,10 +493,12 @@ class LibraryFrame(wx.Frame):
             self.update_manager.check_for_updates(silent_if_up_to_date=True)
         else:
             logging.info("Startup update check disabled by user setting.")
+            self._check_donate_prompt()
 
     def on_update_result(self, event):
         """Handles the result of the update check."""
         if event.success and event.has_update:
+            self.skip_donate_prompt = True
             msg = _("A new version ({0}) is available.\nDo you want to download and install it now?").format(
                 event.latest_version)
             if wx.MessageBox(msg, _("Update Available"), wx.YES_NO | wx.CANCEL | wx.ICON_INFORMATION, parent=self) == wx.YES:
@@ -476,6 +509,7 @@ class LibraryFrame(wx.Frame):
         elif not event.has_update and not event.silent:
             wx.MessageBox(_("You are using the latest version."), _("No Update"), wx.OK | wx.ICON_INFORMATION,
                           parent=self)
+        self._check_donate_prompt()
 
     def on_download_result(self, event):
         """Handles the result of the installer download."""
@@ -490,6 +524,7 @@ class LibraryFrame(wx.Frame):
         last_version = db_manager.get_setting('last_run_version')
 
         if last_version != APP_VERSION:
+            self.skip_donate_prompt = True
             db_manager.set_setting('last_run_version', APP_VERSION)
             
             from dialogs.whats_new_dialog import WhatsNewDialog

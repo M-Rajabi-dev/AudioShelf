@@ -99,8 +99,20 @@ class PropertiesDialog(wx.Dialog):
             pct = int(((idx + 1) / file_count) * 100)
             progress_str = f"{pct}% ({_('File')} {idx + 1} {_('of')} {file_count})"
 
+        elapsed_ms = 0
+        if playback and file_count > 0:
+            idx = playback.get('last_file_index', 0)
+            pos = playback.get('last_position_ms', 0)
+            for i in range(idx):
+                if i < len(files):
+                    elapsed_ms += (files[i][3] or 0)
+            elapsed_ms += pos
+
         if details.get('is_finished'):
             progress_str = _("Finished")
+            elapsed_ms = total_duration_ms
+
+        remaining_ms = max(0, total_duration_ms - elapsed_ms)
 
         last_played = details.get('last_played_timestamp')
         last_played_str = str(last_played) if last_played else _("Never")
@@ -111,6 +123,8 @@ class PropertiesDialog(wx.Dialog):
             "shelf": shelf_name,
             "files": file_count_str,
             "duration": format_time_spoken(total_duration_ms),
+            "elapsed": format_time_spoken(elapsed_ms),
+            "remaining": format_time_spoken(remaining_ms),
             "progress": progress_str,
             "last_played": last_played_str,
             "status": _("Pinned") if details.get('is_pinned') else _("Normal")
@@ -126,6 +140,8 @@ class PropertiesDialog(wx.Dialog):
             f"{_('Status')}: {d.get('status')}",
             f"{_('Progress')}: {d.get('progress')}",
             f"{_('Total Duration')}: {d.get('duration')}",
+            f"{_('Time Elapsed')}: {d.get('elapsed')}",
+            f"{_('Time Remaining')}: {d.get('remaining')}",
             "",
             f"[{_('File Info')}]",
             f"{_('Location')}: {d.get('path')}",

@@ -10,15 +10,16 @@ from typing import List, Tuple, Optional
 def get_book_size_on_disk(book_path: Optional[str]) -> Optional[int]:
     """
     Calculates the total size of all files within a book's root path.
-
-    Args:
-        book_path: The absolute path to the book's directory.
-
-    Returns:
-        The total size in bytes, or None if the path is invalid or an error occurs.
+    Also supports single-file books.
     """
-    if not book_path or not os.path.isdir(book_path):
+    if not book_path or not os.path.exists(book_path):
         return None
+
+    if os.path.isfile(book_path):
+        try:
+            return os.path.getsize(book_path)
+        except OSError:
+            return None
 
     total_size = 0
     try:
